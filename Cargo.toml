@@ -1,0 +1,12 @@
+[workspace]
+members = [
+  "ingestor", # fetch eth block data from rpc and split to sub-blocks
+  "ingestor-proto", # ingestor grpc protocol for subblock and aggregator
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
