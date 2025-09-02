@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package ingestor;
+
+service Ingestor {
+  // try to fetch a subblock task
+  rpc FetchSubblockTask(FetchSubblockTaskRequest)
+      returns (FetchSubblockTaskResponse);
+
+  // try to fetch the aggregation task
+  rpc FetchAggregationTask(FetchAggregationTaskRequest)
+      returns (FetchAggregationTaskResponse);
+}
+
+message FetchSubblockTaskRequest {}
+
+message FetchSubblockTaskResponse {}
+
+message FetchAggregationTaskRequest {}
+
+message FetchAggregationTaskResponse {}

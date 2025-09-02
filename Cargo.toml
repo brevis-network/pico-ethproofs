@@ -10,3 +10,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+prost = "0.13"
+tonic = { version = "0.13", features = ["zstd"] }
+tonic-build = { version = "0.13", features = ["prost"] }
+tonic-web = "0.13"
