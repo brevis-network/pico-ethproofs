@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package ingestor;
+
+service Ingestor {
+  // try to fetch a subblock task
+  rpc FetchSubblockTask(FetchSubblockTaskRequest)
+      returns (FetchSubblockTaskResponse);
+
+  // try to fetch the aggregation task
+  rpc FetchAggregationTask(FetchAggregationTaskRequest)
+      returns (FetchAggregationTaskResponse);
+}
+
+message FetchSubblockTaskRequest {}
+
+message FetchSubblockTaskResponse {
+  // subblock index starts from 0
+  uint32 index = 1;
+  // bincode serialized emulator stdin builder for subblock elf
+  bytes input = 2;
+}
+
+message FetchAggregationTaskRequest {}
+
+message FetchAggregationTaskResponse {
+  // bincode serialized emulator stdin builder for aggregation elf
+  bytes input = 1;
+}
