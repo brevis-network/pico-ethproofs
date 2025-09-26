@@ -1,0 +1,17 @@
+[package]
+name = "mock-proving-service"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "mock-proving-service"
+path = "src/main.rs"
+
+[dependencies]
+# members
+common.workspace = true
+
+# misc
+anyhow.workspace = true
+dotenvy.workspace = true
+tokio.workspace = true

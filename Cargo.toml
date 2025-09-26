@@ -1,7 +1,14 @@
 [workspace]
 members = [
-  "ingestor", # fetch eth block data from rpc and split to sub-blocks
-  "ingestor-proto", # ingestor grpc protocol for subblock and aggregator
+  "bin/eth-proofs",             # service main entry
+  "bin/test-clients",           # websocket clients for testing eth block proving
+  "bin/mock-proving-service",   # mock grpc service for testing the whole process
+  "crates/common",              # common utility functions
+  "crates/fetcher",             # main functions for fetching eth blocks from rpc and generating inputs
+  "crates/fetch-service",       # websocket service for triggering eth block proving and receiving responses
+  "crates/proof-service",       # grpc service for proof return from proving cluster
+  "crates/subblock-client",     # grpc client for calling subblock service
+  "crates/aggregator-client",   # grpc client for calling aggregator service
 ]
 resolver = "2"
 
@@ -11,11 +18,33 @@ edition = "2024"
 
 [workspace.dependencies]
 # members
-ingestor = { path = "ingestor" }
-ingestor-proto = { path = "ingestor-proto" }
+common = { path = "crates/common" }
+database = { path = "crates/database" }
+fetch-service = { path = "crates/fetch-service" }
+message-queue = { path = "crates/message-queue" }
+proof-service = { path = "crates/proof-service" }
+proving-client = { path = "crates/proving-client" }
+
+# rsp-subblock
+rsp-host-executor = { git = "https://github.com/brevis-network/rsp-subblock", branch = "pico" }
+rsp-client-executor = { git = "https://github.com/brevis-network/rsp-subblock", branch = "pico" }
+rsp-mpt = { git = "https://github.com/brevis-network/rsp-subblock", branch = "pico" }
 
 # misc
+anyhow = { version = "1.0", default-features = false }
+bincode = "1.3.3"
+clap = { version = "4.5", features = ["derive", "env"] }
+derive_more = "2.0"
+dotenvy = "0.15"
+fluvio = "0.50"
+futures-util = "0.3"
+itertools = "0.13"
 prost = "0.13"
+serde = { version = "1.0", features = ["derive", "rc"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "signal"] }
 tonic = { version = "0.13", features = ["zstd"] }
 tonic-build = { version = "0.13", features = ["prost"] }
 tonic-web = "0.13"
+tracing = "0.1"
+tracing-forest = { version = "0.2", features = ["ansi", "smallvec"] }
+tracing-subscriber = { version = "0.3", features = ["std", "env-filter"] }

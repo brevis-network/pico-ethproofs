@@ -1,0 +1,21 @@
+[package]
+name = "test-clients"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "prove-block-number"
+path = "src/prove_block_number.rs"
+
+[[bin]]
+name = "prove-latest-block"
+path = "src/prove_latest_block.rs"
+
+[dependencies]
+# members
+common.workspace = true
+
+# misc
+anyhow.workspace = true
+dotenvy.workspace = true
+tokio.workspace = true
