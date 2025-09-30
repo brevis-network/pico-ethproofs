@@ -1,1 +1,1 @@
-tonic::include_proto!("proof_service");
+tonic::include_proto!("proof");
