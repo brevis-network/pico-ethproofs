@@ -1,7 +1,6 @@
 [package]
-name = "ingestor"
+name = "fetcher"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ingestor-proto.workspace = true

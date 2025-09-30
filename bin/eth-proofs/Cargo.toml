@@ -1,0 +1,17 @@
+[package]
+name = "eth-proofs"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "eth-proofs"
+path = "src/main.rs"
+
+[dependencies]
+# members
+common.workspace = true
+
+# misc
+anyhow.workspace = true
+dotenvy.workspace = true
+tokio.workspace = true

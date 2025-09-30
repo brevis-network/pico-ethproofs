@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package proof;
+
+service Proof {
+  // complete the proving process with generated proof and performance report
+  rpc CompleteProving(CompleteProvingRequest) returns (google.protobuf.Empty);
+}
+
+message CompleteProvingRequest {
+  // block number to complete
+  uint64 block_number = 1;
+
+  // bincode serialized proof bytes
+  bytes proof = 2;
+
+  // proving performance report
+  ProvingReport report = 3;
+}
+
+message ProvingReport {
+  // identify if proving is success
+  bool success = 1;
+
+  // emulation cycles
+  uint64 cycles = 2;
+
+  // e2e seconds of proving time
+  uint64 proving_seconds = 3;
+}

@@ -1,5 +1,5 @@
 [package]
-name = "ingestor-proto"
+name = "aggregator-client"
 version.workspace = true
 edition.workspace = true
 
