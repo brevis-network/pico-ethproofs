@@ -1,5 +1,5 @@
 [package]
-name = "subblock-client"
+name = "subblock-proto"
 version.workspace = true
 edition.workspace = true
 

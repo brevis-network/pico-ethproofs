@@ -10,8 +10,12 @@ path = "src/main.rs"
 [dependencies]
 # members
 common.workspace = true
+fetch-service.workspace = true
+messages.workspace = true
 
 # misc
 anyhow.workspace = true
+clap.workspace = true
 dotenvy.workspace = true
+futures.workspace = true
 tokio.workspace = true

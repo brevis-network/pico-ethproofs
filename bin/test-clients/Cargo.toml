@@ -4,8 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "prove-block-number"
-path = "src/prove_block_number.rs"
+name = "prove-block-by-number"
+path = "src/prove_block_by_number.rs"
 
 [[bin]]
 name = "prove-latest-block"
@@ -14,8 +14,11 @@ path = "src/prove_latest_block.rs"
 [dependencies]
 # members
 common.workspace = true
+fetch-client.workspace = true
 
 # misc
 anyhow.workspace = true
+clap.workspace = true
 dotenvy.workspace = true
+reqwest.workspace = true
 tokio.workspace = true

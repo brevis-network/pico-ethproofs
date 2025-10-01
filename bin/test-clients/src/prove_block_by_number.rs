@@ -1,14 +1,17 @@
 use anyhow::Result;
 use clap::Parser;
-use common::{fetch::ProveLatestBlockParams, logger::setup_logger};
+use common::{fetch::ProveBlockByNumberParams, logger::setup_logger};
 use dotenvy::dotenv;
-use fetch_client::{http::prove_latest_block, ws::wait_for_proving_complete};
+use fetch_client::{http::prove_block_by_number, ws::wait_for_proving_complete};
 use reqwest::Url;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 struct Args {
-    #[clap(long, default_value = "1", help = "Number of requested latest blocks")]
+    #[clap(long, help = "Requested start block number to prove")]
+    pub start_block_num: u64,
+
+    #[clap(long, default_value = "1", help = "Number of requested blocks")]
     pub count: u64,
 
     #[clap(
@@ -44,9 +47,9 @@ async fn main() -> Result<()> {
     // parse the cli arguments
     let args = Args::parse();
 
-    // send a http request for proving latest blocks
-    let params = ProveLatestBlockParams::new(Some(args.count));
-    prove_latest_block(&args.http_url, &params).await?;
+    // send a http request for proving a block by the block number
+    let params = ProveBlockByNumberParams::new(args.start_block_num, Some(args.count));
+    prove_block_by_number(&args.http_url, &params).await?;
 
     // wait for the proving result by a websocket connection
     let reports = wait_for_proving_complete(&args.ws_url, args.count as usize).await?;
