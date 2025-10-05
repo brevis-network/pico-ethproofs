@@ -2,13 +2,18 @@
 members = [
   "bin/eth-proofs",             # service main entry
   "bin/test-clients",           # websocket clients for testing eth block proving
-  "bin/mock-proving-service",   # mock grpc service for testing the whole process
   "crates/common",              # common utility functions
+  "crates/messages",            # request and response messages transmitted between multiple threads
+  "crates/scheduler",           # central scheduler for coordinating multiple threads
+  "crates/reporter",            # reporter for collecting and sending block proving reports to client
   "crates/fetcher",             # main functions for fetching eth blocks from rpc and generating inputs
-  "crates/fetch-service",       # websocket service for triggering eth block proving and receiving responses
+  "crates/fetch-client",        # http and websocket client for communication with fetch service
+  "crates/fetch-service",       # http and websocket service for triggering eth block proving and returning response
   "crates/proof-service",       # grpc service for proof return from proving cluster
-  "crates/subblock-client",     # grpc client for calling subblock service
-  "crates/aggregator-client",   # grpc client for calling aggregator service
+  "crates/proof-proto",         # grpc protocol for proof return from proving cluster
+  "crates/subblock-proto",      # grpc protocol for sending subblock input to proving cluster
+  "crates/aggregator-proto",    # grpc protocol for sending aggregation input to proving cluster
+  "crates/proving-mock",        # mock proving grpc communication for testing the whole process
 ]
 resolver = "2"
 
@@ -19,11 +24,17 @@ edition = "2024"
 [workspace.dependencies]
 # members
 common = { path = "crates/common" }
-database = { path = "crates/database" }
+messages = { path = "crates/messages" }
+scheduler = { path = "crates/scheduler" }
+reporter = { path = "crates/reporter" }
+fetcher = { path = "crates/fetcher" }
+fetch-client = { path = "crates/fetch-client" }
 fetch-service = { path = "crates/fetch-service" }
-message-queue = { path = "crates/message-queue" }
 proof-service = { path = "crates/proof-service" }
-proving-client = { path = "crates/proving-client" }
+proof-proto = { path = "crates/proof-proto" }
+subblock-proto = { path = "crates/subblock-proto" }
+aggregator-proto = { path = "crates/aggregator-proto" }
+proving-mock = { path = "crates/proving-mock" }
 
 # rsp-subblock
 rsp-host-executor = { git = "https://github.com/brevis-network/rsp-subblock", branch = "pico" }
@@ -32,19 +43,25 @@ rsp-mpt = { git = "https://github.com/brevis-network/rsp-subblock", branch = "pi
 
 # misc
 anyhow = { version = "1.0", default-features = false }
+axum = { version = "0.8", features = ["ws"] }
 bincode = "1.3.3"
 clap = { version = "4.5", features = ["derive", "env"] }
-derive_more = "2.0"
+crossbeam = "0.8"
+dashmap = "6.1"
+derive_more = { version = "2.0", features = ["constructor"] }
 dotenvy = "0.15"
-fluvio = "0.50"
+futures = "0.3"
 futures-util = "0.3"
 itertools = "0.13"
 prost = "0.13"
+reqwest = "0.12"
 serde = { version = "1.0", features = ["derive", "rc"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "signal"] }
+tokio-tungstenite = "0.28"
 tonic = { version = "0.13", features = ["zstd"] }
 tonic-build = { version = "0.13", features = ["prost"] }
 tonic-web = "0.13"
 tracing = "0.1"
 tracing-forest = { version = "0.2", features = ["ansi", "smallvec"] }
 tracing-subscriber = { version = "0.3", features = ["std", "env-filter"] }
+tungstenite = "0.28"

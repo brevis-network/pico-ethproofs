@@ -1,0 +1,11 @@
+[package]
+name = "proof-proto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+prost.workspace = true
+tonic.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true

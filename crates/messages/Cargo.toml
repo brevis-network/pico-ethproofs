@@ -1,10 +1,12 @@
 [package]
-name = "proof-service"
+name = "messages"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 # members
+common.workspace = true
 proof-proto.workspace = true
 
 # misc
+derive_more.workspace = true

@@ -5,6 +5,10 @@ edition.workspace = true
 
 [dependencies]
 # misc
+anyhow.workspace = true
+crossbeam.workspace = true
+derive_more.workspace = true
+serde.workspace = true
 tracing.workspace = true
 tracing-forest.workspace = true
 tracing-subscriber.workspace = true
