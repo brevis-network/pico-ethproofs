@@ -4,16 +4,17 @@ members = [
   "bin/test-clients",           # websocket clients for testing eth block proving
   "crates/common",              # common utility functions
   "crates/messages",            # request and response messages transmitted between multiple threads
-  "crates/scheduler",           # central scheduler for coordinating multiple threads
+  "crates/scheduler",           # main scheduler for coordinating multiple threads
   "crates/reporter",            # reporter for collecting and sending block proving reports to client
   "crates/fetcher",             # main functions for fetching eth blocks from rpc and generating inputs
   "crates/fetch-client",        # http and websocket client for communication with fetch service
   "crates/fetch-service",       # http and websocket service for triggering eth block proving and returning response
-  "crates/proof-service",       # grpc service for proof return from proving cluster
-  "crates/proof-proto",         # grpc protocol for proof return from proving cluster
+  "crates/proving-client",      # proving grpc client for sending subblock and aggregation inputs to proving cluster
+  "crates/proving-mock",        # mock proving grpc service for testing the whole process
   "crates/subblock-proto",      # grpc protocol for sending subblock input to proving cluster
   "crates/aggregator-proto",    # grpc protocol for sending aggregation input to proving cluster
-  "crates/proving-mock",        # mock proving grpc communication for testing the whole process
+  "crates/proof-service",       # grpc service for proof return from proving cluster
+  "crates/proof-proto",         # grpc protocol for proof return from proving cluster
 ]
 resolver = "2"
 
@@ -30,11 +31,12 @@ reporter = { path = "crates/reporter" }
 fetcher = { path = "crates/fetcher" }
 fetch-client = { path = "crates/fetch-client" }
 fetch-service = { path = "crates/fetch-service" }
-proof-service = { path = "crates/proof-service" }
-proof-proto = { path = "crates/proof-proto" }
+proving-client = { path = "crates/proving-client" }
+proving-mock = { path = "crates/proving-mock" }
 subblock-proto = { path = "crates/subblock-proto" }
 aggregator-proto = { path = "crates/aggregator-proto" }
-proving-mock = { path = "crates/proving-mock" }
+proof-service = { path = "crates/proof-service" }
+proof-proto = { path = "crates/proof-proto" }
 
 # rsp-subblock
 rsp-host-executor = { git = "https://github.com/brevis-network/rsp-subblock", branch = "pico" }

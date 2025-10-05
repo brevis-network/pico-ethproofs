@@ -6,15 +6,12 @@ use axum::{
     response::IntoResponse,
     routing::get,
 };
-use common::{
-    channel::DuplexUnboundedEndpoint,
-    fetch::{
-        HTTP_PROVE_BLOCK_BY_NUMBER_PATH, HTTP_PROVE_LATEST_BLOCK_PATH, ProveBlockByNumberParams,
-        ProveLatestBlockParams,
-    },
+use common::fetch::{
+    HTTP_PROVE_BLOCK_BY_NUMBER_PATH, HTTP_PROVE_LATEST_BLOCK_PATH, ProveBlockByNumberParams,
+    ProveLatestBlockParams,
 };
 use derive_more::Constructor;
-use messages::BlockMsg;
+use messages::BlockMsgSender;
 use std::sync::Arc;
 use tokio::{net::TcpListener, signal::ctrl_c, spawn, task::JoinHandle};
 use tracing::{error, info};
@@ -25,12 +22,14 @@ pub struct FetchService {
     // fetch service configuration
     pub config: FetchServiceConfig,
 
-    // communication endpoint for coordinating with the main scheduler
-    pub comm_endpoint: Arc<DuplexUnboundedEndpoint<BlockMsg, BlockMsg>>,
+    // communication sender for coordinating with the main scheduler
+    pub comm_sender: Arc<BlockMsgSender>,
 }
 
 impl FetchService {
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
+        info!("fetch-service: start");
+
         let addr = self.config.addr;
         spawn(async move {
             // create the router for http and websocket service
