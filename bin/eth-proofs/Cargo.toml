@@ -12,6 +12,7 @@ path = "src/main.rs"
 common.workspace = true
 fetch-service.workspace = true
 messages.workspace = true
+scheduler.workspace = true
 
 # misc
 anyhow.workspace = true

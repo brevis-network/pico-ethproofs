@@ -1,5 +1,5 @@
 use common::{
-    channel::Sender,
+    channel::{DuplexUnboundedEndpoint, Receiver, Sender},
     fetch::{ProveBlockByNumberParams, ProveLatestBlockParams},
     report::BlockProvingReport,
 };
@@ -54,7 +54,7 @@ impl From<ProveLatestBlockParams> for BlockMsg {
 #[derive(Clone, Constructor, Debug)]
 pub struct WatchMsg {
     // notifier for sending the block proving report
-    pub sender: Arc<Sender<BlockMsg>>,
+    pub sender: Arc<BlockMsgSender>,
 }
 
 // fetch request message
@@ -82,3 +82,7 @@ pub struct ProvingMsg {
 
 pub type ProvedMsg = CompleteProvingRequest;
 pub type ReportMsg = BlockProvingReport;
+
+pub type BlockMsgSender = Sender<BlockMsg>;
+pub type BlockMsgReceiver = Receiver<BlockMsg>;
+pub type BlockMsgEndpoint = DuplexUnboundedEndpoint<BlockMsg, BlockMsg>;

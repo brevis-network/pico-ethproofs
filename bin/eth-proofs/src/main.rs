@@ -1,16 +1,15 @@
 use anyhow::Result;
 use clap::Parser;
 use common::{
-    channel::{DuplexUnboundedChannel, DuplexUnboundedEndpoint},
+    channel::{DuplexUnboundedChannel, SingleUnboundedChannel},
     logger::setup_logger,
 };
 use dotenvy::dotenv;
 use fetch_service::{config::FetchServiceConfig, service::FetchService};
 use futures::future::join_all;
-use messages::BlockMsg;
+use messages::{BlockMsgEndpoint, BlockMsgReceiver, BlockMsgSender};
+use scheduler::Scheduler;
 use std::{net::SocketAddr, sync::Arc};
-
-type BlockMsgEndpoint = DuplexUnboundedEndpoint<BlockMsg, BlockMsg>;
 
 #[derive(Parser)]
 struct Args {
@@ -36,7 +35,31 @@ async fn main() -> Result<()> {
     let mut handles = vec![];
 
     // initialize fetch service
-    let (fetch_service, _fetch_service_endpoint) = init_fetch_service(&args);
+    let (fetch_service, fetch_service_receiver) = init_fetch_service(&args);
+
+    // initialize fetcher implementation thread
+    let (_fetcher, fetcher_endpoint) = init_fetcher(&args);
+
+    // initialize proving client thread
+    let (_proving_client, proving_client_sender) = init_proving_client(&args);
+
+    // initialize proof service
+    let (_proof_service, proof_service_receiver) = init_proof_service(&args);
+
+    // initialize reporter thread
+    let (_reporter, reporter_sender) = init_reporter(&args);
+
+    // initialize main scheduler
+    let scheduler = Arc::new(Scheduler::new(
+        fetch_service_receiver,
+        fetcher_endpoint,
+        proving_client_sender,
+        proof_service_receiver,
+        reporter_sender,
+    ));
+
+    // start scheduler
+    handles.push(scheduler.run());
 
     // start the fetch service
     handles.push(fetch_service.run());
@@ -47,14 +70,46 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-// initialize fetch service with a communication endpoint
-fn init_fetch_service(args: &Args) -> (Arc<FetchService>, Arc<BlockMsgEndpoint>) {
+// initialize fetch service
+fn init_fetch_service(args: &Args) -> (Arc<FetchService>, Arc<BlockMsgReceiver>) {
     // create communication channel
-    let comm_channel = DuplexUnboundedChannel::default();
+    let comm_channel = SingleUnboundedChannel::default();
 
     // create fetch service
     let config = FetchServiceConfig::new(args.fetch_service_addr);
-    let service = FetchService::new(config, comm_channel.endpoint1()).into();
+    let service = FetchService::new(config, comm_channel.sender()).into();
 
-    (service, comm_channel.endpoint2())
+    (service, comm_channel.receiver())
+}
+
+// initialize fetcher implementation thread
+fn init_fetcher(_args: &Args) -> ((), Arc<BlockMsgEndpoint>) {
+    // create communication channel
+    let comm_channel = DuplexUnboundedChannel::default();
+
+    ((), comm_channel.endpoint2())
+}
+
+// initialize proving client thread
+fn init_proving_client(_args: &Args) -> ((), Arc<BlockMsgSender>) {
+    // create communication channel
+    let comm_channel = SingleUnboundedChannel::default();
+
+    ((), comm_channel.sender())
+}
+
+// initialize proof service
+fn init_proof_service(_args: &Args) -> ((), Arc<BlockMsgReceiver>) {
+    // create communication channel
+    let comm_channel = SingleUnboundedChannel::default();
+
+    ((), comm_channel.receiver())
+}
+
+// initialize reporter thread
+fn init_reporter(_args: &Args) -> ((), Arc<BlockMsgSender>) {
+    // create communication channel
+    let comm_channel = SingleUnboundedChannel::default();
+
+    ((), comm_channel.sender())
 }

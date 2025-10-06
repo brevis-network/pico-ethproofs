@@ -1,0 +1,11 @@
+[package]
+name = "proving-client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# members
+aggregator-proto.workspace = true
+subblock-proto.workspace = true
+
+# misc

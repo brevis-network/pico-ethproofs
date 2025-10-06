@@ -16,7 +16,7 @@ impl FetchService {
         // register a block proving monitor to receive block reports
         let channel = SingleUnboundedChannel::default();
         let msg = BlockMsg::Watch(WatchMsg::new(channel.sender()));
-        self.comm_endpoint.send(msg)?;
+        self.comm_sender.send(msg)?;
         let proved_receiver = channel.receiver();
 
         // send a connection welcome message
