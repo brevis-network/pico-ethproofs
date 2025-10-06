@@ -11,7 +11,11 @@ path = "src/main.rs"
 # members
 common.workspace = true
 fetch-service.workspace = true
+fetcher.workspace = true
 messages.workspace = true
+proof-service.workspace = true
+proving-client.workspace = true
+reporter.workspace = true
 scheduler.workspace = true
 
 # misc
@@ -19,4 +23,5 @@ anyhow.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 futures.workspace = true
+reqwest.workspace = true
 tokio.workspace = true

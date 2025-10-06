@@ -1,6 +1,7 @@
 use common::{
     channel::{DuplexUnboundedEndpoint, Receiver, Sender},
     fetch::{ProveBlockByNumberParams, ProveLatestBlockParams},
+    inputs::ProvingInputs,
     report::BlockProvingReport,
 };
 use derive_more::Constructor;
@@ -67,22 +68,13 @@ pub enum FetchMsg {
     Latest { count: u64 },
 }
 
-// proving request message
-#[derive(Clone, Constructor, Debug)]
-pub struct ProvingMsg {
-    // block number to prove
-    pub block_number: u64,
-
-    // bincode serialized aggregation stdin builder
-    pub agg_input: Vec<u8>,
-
-    // bincode serialized multiple subblock stdin builders
-    pub subblock_inputs: Vec<Vec<u8>>,
-}
-
+pub type ProvingMsg = ProvingInputs;
 pub type ProvedMsg = CompleteProvingRequest;
 pub type ReportMsg = BlockProvingReport;
 
 pub type BlockMsgSender = Sender<BlockMsg>;
 pub type BlockMsgReceiver = Receiver<BlockMsg>;
 pub type BlockMsgEndpoint = DuplexUnboundedEndpoint<BlockMsg, BlockMsg>;
+
+pub type FetchMsgSender = Sender<FetchMsg>;
+pub type FetchMsgReceiver = Receiver<FetchMsg>;

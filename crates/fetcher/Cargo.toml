@@ -4,3 +4,24 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+# members
+common.workspace = true
+messages.workspace = true
+
+# pico
+pico-sdk.workspace = true
+
+# rsp-subblock
+rsp-client-executor.workspace = true
+rsp-host-executor.workspace = true
+
+# misc
+alloy-provider.workspace = true
+anyhow.workspace = true
+bincode.workspace = true
+derive_more.workspace = true
+futures.workspace = true
+itertools.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tracing.workspace = true
