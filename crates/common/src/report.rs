@@ -10,14 +10,14 @@ pub struct BlockProvingReport {
     // emulation cycles
     pub cycles: u64,
 
-    // seconds of proving time
-    pub proving_seconds: u64,
+    // milliseconds of proving time
+    pub proving_milliseconds: u64,
 
-    // seconds of fetching and preparing block input data
-    pub data_fetch_seconds: u64,
+    // milliseconds of fetching and preparing block input data
+    pub data_fetch_milliseconds: u64,
 
-    // seconds of total time
-    pub total_seconds: u64,
+    // milliseconds of total time
+    pub total_milliseconds: u64,
 
     // bincode serialized proof bytes
     pub proofs: Option<Vec<u8>>,
@@ -36,7 +36,7 @@ impl BlockProvingReport {
         if !file_exists {
             writeln!(
                 file,
-                "success,cycles,proving_seconds,data_fetch_seconds,total_seconds",
+                "success,cycles,proving_milliseconds,data_fetch_milliseconds,total_milliseconds",
             )?;
         }
 
@@ -45,9 +45,9 @@ impl BlockProvingReport {
             "{},{},{},{},{}",
             self.success,
             self.cycles,
-            self.proving_seconds,
-            self.data_fetch_seconds,
-            self.total_seconds
+            self.proving_milliseconds,
+            self.data_fetch_milliseconds,
+            self.total_milliseconds
         )?;
 
         Ok(())
