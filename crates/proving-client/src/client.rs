@@ -157,6 +157,7 @@ async fn send_proving_inputs(
     );
     let num_subblocks = num_subblocks as u32;
 
+    // TODO: check if this could be changed to run futures in parallel
     info!("proving-client: requesting with the aggregator input of block {block_number}");
     let req = ProveAggregationRequest {
         block_number,
