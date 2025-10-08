@@ -6,3 +6,9 @@ edition.workspace = true
 [dependencies]
 # members
 common.workspace = true
+messages.workspace = true
+
+# misc
+derive_more.workspace = true
+tokio.workspace = true
+tracing.workspace = true

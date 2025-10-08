@@ -5,6 +5,10 @@ edition.workspace = true
 
 [dependencies]
 # members
+messages.workspace = true
 proof-proto.workspace = true
 
 # misc
+derive_more.workspace = true
+tokio.workspace = true
+tracing.workspace = true
