@@ -5022,7 +5022,14 @@ name = "proving-client"
 version = "0.1.0"
 dependencies = [
  "aggregator-proto",
+ "common",
+ "derive_more 2.0.1",
+ "messages",
+ "reqwest",
  "subblock-proto",
+ "tokio",
+ "tonic",
+ "tracing",
 ]
 
 [[package]]

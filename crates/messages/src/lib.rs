@@ -68,7 +68,16 @@ pub enum FetchMsg {
     Latest { count: u64 },
 }
 
-pub type ProvingMsg = ProvingInputs;
+// proving request message
+#[derive(Clone, Constructor, Debug)]
+pub struct ProvingMsg {
+    // block fetch report
+    pub fetch_report: BlockProvingReport,
+
+    // proving inputs
+    pub proving_inputs: ProvingInputs,
+}
+
 pub type ProvedMsg = CompleteProvingRequest;
 pub type ReportMsg = BlockProvingReport;
 
