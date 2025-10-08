@@ -9,7 +9,7 @@ use fetch_service::{config::FetchServiceConfig, service::FetchService};
 use fetcher::{config::BlockFetcherConfig, fetcher::BlockFetcher};
 use futures::future::join_all;
 use messages::{BlockMsgEndpoint, BlockMsgReceiver, BlockMsgSender};
-use proof_service::service::ProofService;
+use proof_service::{config::ProofServiceConfig, service::ProofService};
 use reporter::BlockReporter;
 use reqwest::Url;
 use scheduler::Scheduler;
@@ -59,6 +59,22 @@ struct Args {
         help = "Fetch service socket address"
     )]
     fetch_service_addr: SocketAddr,
+
+    #[clap(
+        long,
+        env = "PROOF_SERVICE_ADDR",
+        default_value = "[::]:50052",
+        help = "Proof service GRPC address"
+    )]
+    pub proof_service_addr: SocketAddr,
+
+    #[clap(
+        long,
+        env = "MAX_GRPC_MSG_BYTES",
+        default_value = "1073741824",
+        help = "Maximum GRPC message bytes"
+    )]
+    pub max_grpc_msg_bytes: usize,
 }
 
 #[tokio::main]
@@ -161,12 +177,13 @@ fn init_proving_client(_args: &Args) -> ((), Arc<BlockMsgSender>) {
 }
 
 // initialize proof service
-fn init_proof_service(_args: &Args) -> (Arc<ProofService>, Arc<BlockMsgReceiver>) {
+fn init_proof_service(args: &Args) -> (ProofService, Arc<BlockMsgReceiver>) {
     // create communication channel
     let comm_channel = SingleUnboundedChannel::default();
 
     // create proof service
-    let service = ProofService::new(comm_channel.sender()).into();
+    let config = ProofServiceConfig::new(args.proof_service_addr, args.max_grpc_msg_bytes);
+    let service = ProofService::new(config, comm_channel.sender());
 
     (service, comm_channel.receiver())
 }

@@ -59,6 +59,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloc-no-stdlib"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94fb8275041c72129eb51b7d0322c29b8387a0386127718b096429201a5d6ece"
+dependencies = [
+ "alloc-no-stdlib",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -371,7 +386,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.5.2",
  "tracing",
  "wasmtimer",
 ]
@@ -417,7 +432,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.5.2",
  "tracing",
  "url",
  "wasmtimer",
@@ -588,7 +603,7 @@ dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
  "auto_impl",
- "base64",
+ "base64 0.22.1",
  "derive_more 2.0.1",
  "futures",
  "futures-utils-wasm",
@@ -597,7 +612,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
- "tower",
+ "tower 0.5.2",
  "tracing",
  "url",
  "wasmtimer",
@@ -613,7 +628,7 @@ dependencies = [
  "alloy-transport",
  "reqwest",
  "serde_json",
- "tower",
+ "tower 0.5.2",
  "tracing",
  "url",
 ]
@@ -1045,6 +1060,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-compression"
+version = "0.4.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a89bce6054c720275ac2432fbba080a66a2106a44a1b804553930ca6909f4e0"
+dependencies = [
+ "compression-codecs",
+ "compression-core",
+ "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "async-stream"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1128,7 +1156,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "021e862c184ae977658b36c4500f7feac3221ca5da43e3f25bd04ab6c79a29b5"
 dependencies = [
  "axum-core",
- "base64",
+ "base64 0.22.1",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -1152,7 +1180,7 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-tungstenite 0.26.2",
- "tower",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -1203,6 +1231,12 @@ name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+
+[[package]]
+name = "base64"
+version = "0.21.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
@@ -1358,6 +1392,27 @@ dependencies = [
  "glob",
  "threadpool",
  "zeroize",
+]
+
+[[package]]
+name = "brotli"
+version = "8.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bd8b9603c7aa97359dbd97ecf258968c95f3adddd6db2f7e7a5bef101c84560"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+ "brotli-decompressor",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "874bb8112abecc98cbd6d81ea4fa7e94fb9449648c93cc89aa40c81c24d7de03"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
 ]
 
 [[package]]
@@ -1527,6 +1582,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "compression-codecs"
+version = "0.4.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef8a506ec4b81c460798f572caead636d57d3d7e940f998160f52bd254bf2d23"
+dependencies = [
+ "brotli",
+ "compression-core",
+ "flate2",
+ "memchr",
+ "zstd",
+ "zstd-safe",
+]
+
+[[package]]
+name = "compression-core"
+version = "0.4.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e47641d3deaf41fb1538ac1f54735925e275eaf3bf4d55c81b137fba797e5cbb"
+
+[[package]]
 name = "const-hex"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1640,6 +1715,15 @@ name = "crc-catalog"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
+
+[[package]]
+name = "crc32fast"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
+dependencies = [
+ "cfg-if",
+]
 
 [[package]]
 name = "critical-section"
@@ -2398,6 +2482,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
+name = "flate2"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc5a4e564e38c699f2880d3fda590bedc2e69f3f84cd48b457bd892ce61d0aa9"
+dependencies = [
+ "crc32fast",
+ "miniz_oxide",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2406,7 +2500,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "foldhash"
 version = "0.1.5"
-source = "git+ssh://git@github.com/brevis-network/foldhash.git?branch=pico#319663b3ffb0e8d32e2269983df3476afdedd218"
+source = "git+https://github.com/brevis-network/foldhash.git?branch=pico#319663b3ffb0e8d32e2269983df3476afdedd218"
 
 [[package]]
 name = "foreign-types"
@@ -2811,6 +2905,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "http-range-header"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
+
+[[package]]
 name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2906,7 +3006,7 @@ version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c6995591a8f1380fcb4ba966a252a4b29188d51d2b89e3a252f5305be65aea8"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-channel",
  "futures-core",
@@ -3320,7 +3420,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e79019718125edc905a079a70cfa5f3820bc76139fc91d6f9abc27ea2a887139"
 dependencies = [
  "arrayref",
- "base64",
+ "base64 0.22.1",
  "digest 0.9.0",
  "libsecp256k1-core",
  "libsecp256k1-gen-ecmult",
@@ -3455,12 +3555,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
+name = "mime_guess"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
+dependencies = [
+ "mime",
+ "unicase",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
  "adler2",
+ "simd-adler32",
 ]
 
 [[package]]
@@ -4827,6 +4938,10 @@ dependencies = [
  "messages",
  "proof-proto",
  "tokio",
+ "tonic",
+ "tonic-web",
+ "tower 0.5.2",
+ "tower-http 0.5.2",
  "tracing",
 ]
 
@@ -5209,7 +5324,7 @@ version = "0.12.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d429f34c8092b2d42c7c93cec323bb4adeb7c67698f70839adec842ec10c7ceb"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -5237,8 +5352,8 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls",
- "tower",
- "tower-http",
+ "tower 0.5.2",
+ "tower-http 0.6.6",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -5659,7 +5774,7 @@ dependencies = [
 [[package]]
 name = "revm"
 version = "28.0.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "revm-bytecode",
  "revm-context",
@@ -5677,7 +5792,7 @@ dependencies = [
 [[package]]
 name = "revm-bytecode"
 version = "6.2.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "bitvec",
  "phf",
@@ -5688,7 +5803,7 @@ dependencies = [
 [[package]]
 name = "revm-context"
 version = "9.0.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "bitvec",
  "cfg-if",
@@ -5704,7 +5819,7 @@ dependencies = [
 [[package]]
 name = "revm-context-interface"
 version = "10.0.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "alloy-eip2930",
  "alloy-eip7702",
@@ -5719,7 +5834,7 @@ dependencies = [
 [[package]]
 name = "revm-database"
 version = "7.0.4"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "alloy-eips",
  "revm-bytecode",
@@ -5732,7 +5847,7 @@ dependencies = [
 [[package]]
 name = "revm-database-interface"
 version = "7.0.4"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "auto_impl",
  "either",
@@ -5744,7 +5859,7 @@ dependencies = [
 [[package]]
 name = "revm-handler"
 version = "9.0.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "auto_impl",
  "derive-where",
@@ -5762,7 +5877,7 @@ dependencies = [
 [[package]]
 name = "revm-inspector"
 version = "9.1.0"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "auto_impl",
  "either",
@@ -5779,7 +5894,7 @@ dependencies = [
 [[package]]
 name = "revm-interpreter"
 version = "25.0.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "revm-bytecode",
  "revm-context-interface",
@@ -5790,7 +5905,7 @@ dependencies = [
 [[package]]
 name = "revm-precompile"
 version = "26.0.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -5816,7 +5931,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "20.2.1"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "alloy-primitives",
  "num_enum 0.7.4",
@@ -5827,7 +5942,7 @@ dependencies = [
 [[package]]
 name = "revm-state"
 version = "7.0.4"
-source = "git+ssh://git@github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
+source = "git+https://github.com/brevis-network/revm.git?branch=pico#8b1bae3744833409fd65f69f6f0796ed2c632c47"
 dependencies = [
  "bitflags",
  "revm-bytecode",
@@ -6462,7 +6577,7 @@ version = "3.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c522100790450cf78eeac1507263d0a350d4d5b30df0c8e1fe051a10c22b376e"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -6585,6 +6700,12 @@ dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "simd-adler32"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
 
 [[package]]
 name = "simdutf8"
@@ -7203,7 +7324,7 @@ checksum = "7e581ba15a835f4d9ea06c55ab1bd4dce26fc53752c69a04aac00703bfb49ba9"
 dependencies = [
  "async-trait",
  "axum",
- "base64",
+ "base64 0.22.1",
  "bytes",
  "h2",
  "http",
@@ -7218,7 +7339,7 @@ dependencies = [
  "socket2 0.5.10",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -7237,6 +7358,39 @@ dependencies = [
  "prost-types",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "tonic-web"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "774cad0f35370f81b6c59e3a1f5d0c3188bdb4a2a1b8b7f0921c860bfbd3aec6"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "http",
+ "http-body",
+ "pin-project",
+ "tokio-stream",
+ "tonic",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower"
+version = "0.4.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -7260,6 +7414,37 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+dependencies = [
+ "async-compression",
+ "base64 0.21.7",
+ "bitflags",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "http-range-header",
+ "httpdate",
+ "iri-string",
+ "mime",
+ "mime_guess",
+ "percent-encoding",
+ "pin-project-lite",
+ "tokio",
+ "tokio-util",
+ "tower 0.4.13",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "tower-http"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adc82fd73de2a9722ac5da747f12383d2bfdb93591ee6c58486e0097890f05f2"
@@ -7271,7 +7456,7 @@ dependencies = [
  "http-body",
  "iri-string",
  "pin-project-lite",
- "tower",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
 ]
@@ -7468,6 +7653,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
 
 [[package]]
+name = "unicase"
+version = "2.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75b844d17643ee918803943289730bec8aac480150456169e647ed0b576ba539"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7537,6 +7728,7 @@ version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
 dependencies = [
+ "getrandom 0.3.3",
  "js-sys",
  "wasm-bindgen",
 ]
