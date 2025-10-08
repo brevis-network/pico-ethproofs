@@ -10,6 +10,7 @@ use fetcher::{config::BlockFetcherConfig, fetcher::BlockFetcher};
 use futures::future::join_all;
 use messages::{BlockMsgEndpoint, BlockMsgReceiver, BlockMsgSender};
 use proof_service::{config::ProofServiceConfig, service::ProofService};
+use proving_client::{client::ProvingClient, config::ProvingClientConfig};
 use reporter::BlockReporter;
 use reqwest::Url;
 use scheduler::Scheduler;
@@ -75,6 +76,21 @@ struct Args {
         help = "Maximum GRPC message bytes"
     )]
     pub max_grpc_msg_bytes: usize,
+
+    #[clap(
+        long,
+        env = "PROVING_AGG_URL",
+        help = "Aggregator proving GRPC URL to request"
+    )]
+    pub proving_agg_url: Url,
+
+    #[clap(
+        long,
+        env = "PROVING_SUBBLOCK_URLS",
+        value_delimiter = ',',
+        help = "Subbblock proving GRPC URLs separated by comma, e.g. `http://172.1.1.1:50052,http://172.2.2.2:50052`"
+    )]
+    pub proving_subblock_urls: Vec<Url>,
 }
 
 #[tokio::main]
@@ -92,14 +108,14 @@ async fn main() -> Result<()> {
     // initialize fetch service
     let (fetch_service, fetch_service_receiver) = init_fetch_service(&args);
 
+    // initialize proof service
+    let (proof_service, proof_service_receiver) = init_proof_service(&args);
+
     // initialize fetcher implementation thread
     let (fetcher, fetcher_endpoint) = init_fetcher(&args);
 
     // initialize proving client thread
-    let (_proving_client, proving_client_sender) = init_proving_client(&args);
-
-    // initialize proof service
-    let (proof_service, proof_service_receiver) = init_proof_service(&args);
+    let (proving_client, proving_client_endpoint) = init_proving_client(&args);
 
     // initialize reporter thread
     let (reporter, reporter_sender) = init_reporter(&args);
@@ -107,28 +123,29 @@ async fn main() -> Result<()> {
     // initialize main scheduler
     let scheduler = Arc::new(Scheduler::new(
         fetch_service_receiver,
-        fetcher_endpoint,
-        proving_client_sender,
         proof_service_receiver,
+        fetcher_endpoint,
+        proving_client_endpoint,
         reporter_sender,
     ));
 
     // start scheduler
     handles.push(scheduler.run());
 
-    // TODO: start the proving client thread
+    // start the reporter thread
+    handles.push(reporter.run());
+
+    // start the proving-client thread
+    handles.push(proving_client.run());
 
     // start the fetcher thread
     handles.extend(fetcher.run());
 
-    // start the fetch service
-    handles.push(fetch_service.run());
-
-    // start the reporter thread
-    handles.push(reporter.run());
-
-    // start the proof service
+    // start the proof-service
     handles.push(proof_service.run());
+
+    // start the fetch-service
+    handles.push(fetch_service.run());
 
     // wait for the all threads exit
     join_all(handles).await;
@@ -136,7 +153,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-// initialize fetch service
+// initialize fetch-service
 fn init_fetch_service(args: &Args) -> (Arc<FetchService>, Arc<BlockMsgReceiver>) {
     // create communication channel
     let comm_channel = SingleUnboundedChannel::default();
@@ -144,6 +161,18 @@ fn init_fetch_service(args: &Args) -> (Arc<FetchService>, Arc<BlockMsgReceiver>)
     // create fetch service
     let config = FetchServiceConfig::new(args.fetch_service_addr);
     let service = FetchService::new(config, comm_channel.sender()).into();
+
+    (service, comm_channel.receiver())
+}
+
+// initialize proof-service
+fn init_proof_service(args: &Args) -> (ProofService, Arc<BlockMsgReceiver>) {
+    // create communication channel
+    let comm_channel = SingleUnboundedChannel::default();
+
+    // create proof service
+    let config = ProofServiceConfig::new(args.proof_service_addr, args.max_grpc_msg_bytes);
+    let service = ProofService::new(config, comm_channel.sender());
 
     (service, comm_channel.receiver())
 }
@@ -168,24 +197,20 @@ fn init_fetcher(args: &Args) -> (Arc<BlockFetcher>, Arc<BlockMsgEndpoint>) {
     (fetcher, comm_channel.endpoint2())
 }
 
-// initialize proving client thread
-fn init_proving_client(_args: &Args) -> ((), Arc<BlockMsgSender>) {
+// initialize proving-client thread
+fn init_proving_client(args: &Args) -> (Arc<ProvingClient>, Arc<BlockMsgEndpoint>) {
     // create communication channel
-    let comm_channel = SingleUnboundedChannel::default();
+    let comm_channel = DuplexUnboundedChannel::default();
 
-    ((), comm_channel.sender())
-}
+    // create proving-client instance
+    let config = ProvingClientConfig::new(
+        args.max_grpc_msg_bytes,
+        args.proving_agg_url.clone(),
+        args.proving_subblock_urls.clone(),
+    );
+    let proving_client = ProvingClient::new(config, comm_channel.endpoint1()).into();
 
-// initialize proof service
-fn init_proof_service(args: &Args) -> (ProofService, Arc<BlockMsgReceiver>) {
-    // create communication channel
-    let comm_channel = SingleUnboundedChannel::default();
-
-    // create proof service
-    let config = ProofServiceConfig::new(args.proof_service_addr, args.max_grpc_msg_bytes);
-    let service = ProofService::new(config, comm_channel.sender());
-
-    (service, comm_channel.receiver())
+    (proving_client, comm_channel.endpoint2())
 }
 
 // initialize reporter thread

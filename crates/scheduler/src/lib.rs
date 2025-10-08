@@ -23,16 +23,16 @@ pub struct Scheduler {
     // receiving and handling fetch requests from fetch-service
     fetch_service_receiver: Arc<BlockMsgReceiver>,
 
-    // bidirectional endpoint for receiving the fetch requests and sending the proving requests
-    fetcher_endpoint: Arc<BlockMsgEndpoint>,
-
-    // sending proving requests to proving-client thread
-    proving_client_sender: Arc<BlockMsgSender>,
-
     // receiving and handling proving results
     proof_service_receiver: Arc<BlockMsgReceiver>,
 
-    // sending fetch and proving results to reporter thread
+    // bidirectional endpoint for receiving the fetch requests and sending the proving requests
+    fetcher_endpoint: Arc<BlockMsgEndpoint>,
+
+    // bidirectional endpoint for receiving the proving requests and sending the block reports
+    proving_client_endpoint: Arc<BlockMsgEndpoint>,
+
+    // sending the block reports to the reporter thread
     reporter_sender: Arc<BlockMsgSender>,
 }
 
@@ -43,7 +43,7 @@ impl Scheduler {
         let fetch_service_receiver = self.fetch_service_receiver.clone();
         let proof_service_receiver = self.proof_service_receiver.clone();
         let fetcher_endpoint = self.fetcher_endpoint.clone();
-        let proving_client_sender = self.proving_client_sender.clone();
+        let proving_client_endpoint = self.proving_client_endpoint.clone();
         let report_sender = self.reporter_sender.clone();
 
         spawn_blocking(move || {
@@ -53,7 +53,7 @@ impl Scheduler {
                         let msg = msg.expect("scheduler: received an error message from fetch-service");
                         match msg {
                             BlockMsg::Fetch(_) => {
-                                fetcher_endpoint.send(msg).expect("scheduler: failed to send a message to fetcher thread");
+                                fetcher_endpoint.send(msg).expect("scheduler: failed to send a fetch message to fetcher thread");
                             }
                             _ => {
                                 error!("scheduler: received a wrong message from fetch-service {msg:?}");
@@ -64,7 +64,7 @@ impl Scheduler {
                         let msg = msg.expect("scheduler: received an error message from proof-service");
                         match msg {
                             BlockMsg::Proved(_) => {
-                                report_sender.send(msg).expect("scheduler: failed to send a message to reporter thread");
+                                proving_client_endpoint.send(msg).expect("scheduler: failed to send a proved message to proving-client thread");
                             }
                             _ => {
                                 error!("scheduler: received a wrong message from proof-service {msg:?}");
@@ -75,13 +75,21 @@ impl Scheduler {
                         let msg = msg.expect("scheduler: received an error message from fetcher thread");
                         match msg {
                             BlockMsg::Proving(_) => {
-                                proving_client_sender.send(msg).expect("scheduler: failed to send a message to proving-client thread");
-                            }
-                            BlockMsg::Report(_) => {
-                                report_sender.send(msg).expect("scheduler: failed to send a message to reporter thread");
+                                proving_client_endpoint.send(msg).expect("scheduler: failed to send a proving message to proving-client thread");
                             }
                             _ => {
-                                error!("scheduler: received a wrong message from fetch thread {msg:?}");
+                                error!("scheduler: received a wrong message from fetcher thread {msg:?}");
+                            }
+                        }
+                    }
+                    recv(proving_client_endpoint.receiver()) -> msg => {
+                        let msg = msg.expect("scheduler: received an error message from proving-client thread");
+                        match msg {
+                            BlockMsg::Report(_) => {
+                                report_sender.send(msg).expect("scheduler: failed to send a report message to reporter thread");
+                            }
+                            _ => {
+                                error!("scheduler: received a wrong message from proving-client thread {msg:?}");
                             }
                         }
                     }

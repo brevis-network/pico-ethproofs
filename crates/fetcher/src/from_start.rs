@@ -1,8 +1,9 @@
 use crate::subblock_executor::SubblockExecutor;
 use anyhow::Result;
+use common::report::BlockProvingReport;
 use derive_more::Constructor;
-use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver};
-use std::sync::Arc;
+use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver, ProvingMsg};
+use std::{sync::Arc, time::Instant};
 use tokio::{spawn, task::JoinHandle};
 use tracing::{error, info};
 
@@ -55,10 +56,15 @@ impl FromStartFetcher {
     // fetch a specified block by number
     async fn fetch_block(&self, block_number: u64) -> Result<()> {
         // generate proving inputs of the specified block number
+        let start_time = Instant::now();
         let proving_inputs = self.subblock_executor.generate_inputs(block_number).await?;
+        let data_fetch_milliseconds = start_time.elapsed().as_millis() as u64;
+
+        // create a block report
+        let fetch_report = BlockProvingReport::new(block_number, data_fetch_milliseconds);
 
         // send the proving message
-        let msg = BlockMsg::Proving(proving_inputs);
+        let msg = BlockMsg::Proving(ProvingMsg::new(fetch_report, proving_inputs));
         self.proving_sender.send(msg)?;
 
         Ok(())

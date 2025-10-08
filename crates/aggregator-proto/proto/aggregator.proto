@@ -13,6 +13,9 @@ message ProveAggregationRequest {
   // block number to prove
   uint64 block_number = 1;
 
+  // total number of subblocks
+  uint32 num_subblocks = 2;
+
   // bincode serialized stdin builder: final_aggregator_stdin_builder.bin
-  bytes input = 2;
+  bytes input = 3;
 }

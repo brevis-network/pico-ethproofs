@@ -13,9 +13,12 @@ message ProveSubblockRequest {
   // block number to prove
   uint64 block_number = 1;
 
+  // total number of subblocks
+  uint32 num_subblocks = 2;
+
   // block number to prove
-  uint32 subblock_index = 2;
+  uint32 subblock_index = 3;
 
   // bincode serialized stdin builder: subblock_stdin_builder_INDEX.bin
-  bytes input = 3;
+  bytes input = 4;
 }

@@ -6,6 +6,13 @@ edition.workspace = true
 [dependencies]
 # members
 aggregator-proto.workspace = true
+common.workspace = true
+messages.workspace = true
 subblock-proto.workspace = true
 
 # misc
+derive_more.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tonic.workspace = true
+tracing.workspace = true

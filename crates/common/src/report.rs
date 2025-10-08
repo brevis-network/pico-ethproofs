@@ -7,6 +7,9 @@ pub struct BlockProvingReport {
     // identify if proving is success
     pub success: bool,
 
+    // block number
+    pub block_number: u64,
+
     // emulation cycles
     pub cycles: u64,
 
@@ -16,14 +19,32 @@ pub struct BlockProvingReport {
     // milliseconds of fetching and preparing block input data
     pub data_fetch_milliseconds: u64,
 
-    // milliseconds of total time
-    pub total_milliseconds: u64,
-
     // bincode serialized proof bytes
-    pub proofs: Option<Vec<u8>>,
+    pub proof: Option<Vec<u8>>,
 }
 
 impl BlockProvingReport {
+    // initialize a report after fetching block data
+    pub fn new(block_number: u64, data_fetch_milliseconds: u64) -> Self {
+        Self {
+            block_number,
+            data_fetch_milliseconds,
+            ..Default::default()
+        }
+    }
+
+    // set proving success
+    pub fn on_proving_success(&mut self, cycles: u64, proving_milliseconds: u64, proof: Vec<u8>) {
+        self.cycles = cycles;
+        self.proving_milliseconds = proving_milliseconds;
+        self.proof = Some(proof);
+    }
+
+    // set proving failure
+    pub fn on_proving_failure(&mut self) {
+        self.success = false;
+    }
+
     pub fn append_to_csv<P: AsRef<Path>>(&self, csv_file_path: P) -> Result<()> {
         let file_path = csv_file_path.as_ref();
         let file_exists = file_path.exists();
@@ -36,18 +57,18 @@ impl BlockProvingReport {
         if !file_exists {
             writeln!(
                 file,
-                "success,cycles,proving_milliseconds,data_fetch_milliseconds,total_milliseconds",
+                "block_number,success,cycles,proving_milliseconds,data_fetch_milliseconds",
             )?;
         }
 
         writeln!(
             file,
             "{},{},{},{},{}",
+            self.block_number,
             self.success,
             self.cycles,
             self.proving_milliseconds,
             self.data_fetch_milliseconds,
-            self.total_milliseconds
         )?;
 
         Ok(())
