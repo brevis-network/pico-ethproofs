@@ -49,13 +49,5 @@ async fn main() -> Result<()> {
     prove_latest_block(&args.http_url, &params).await?;
 
     // wait for the proving result by a websocket connection
-    let reports = wait_for_proving_complete(&args.ws_url, args.count as usize).await?;
-
-    // save the proving reports to a csv file
-    reports
-        .iter()
-        .map(|r| r.append_to_csv(&args.report_path))
-        .collect::<Result<Vec<_>>>()?;
-
-    Ok(())
+    wait_for_proving_complete(&args.ws_url, args.count as usize, &Some(args.report_path)).await
 }

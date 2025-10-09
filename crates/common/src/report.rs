@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::{fs::OpenOptions, io::Write, path::Path};
+use std::{fmt, fs::OpenOptions, io::Write, path::Path};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct BlockProvingReport {
@@ -21,6 +21,20 @@ pub struct BlockProvingReport {
 
     // bincode serialized proof bytes
     pub proof: Option<Vec<u8>>,
+}
+
+impl fmt::Display for BlockProvingReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Block #{} | success: {} | cycles: {} | proving: {} ms | data_fetch: {} ms",
+            self.block_number,
+            self.success,
+            self.cycles,
+            self.proving_milliseconds,
+            self.data_fetch_milliseconds,
+        )
+    }
 }
 
 impl BlockProvingReport {
