@@ -2,6 +2,7 @@ use anyhow::Result;
 use common::report::BlockProvingReport;
 use futures::{SinkExt, StreamExt};
 use reqwest::Url;
+use std::path::PathBuf;
 use tokio::{
     spawn,
     time::{Duration, sleep},
@@ -15,8 +16,9 @@ const WS_PING_INTERVAL: u64 = 15;
 // wait proving complete for the specified number of requested blocks on a websocket connection
 pub async fn wait_for_proving_complete(
     ws_url: &Url,
-    block_count: usize,
-) -> Result<Vec<BlockProvingReport>> {
+    mut block_count: usize,
+    report_path: &Option<PathBuf>,
+) -> Result<()> {
     let url = ws_url.as_str();
     info!("connecting to websocket: url = {url}");
 
@@ -41,18 +43,25 @@ pub async fn wait_for_proving_complete(
     });
 
     // wait for receiving the proving reports of requested number of blocks
-    let mut reports = Vec::with_capacity(block_count);
     while let Some(msg) = read.next().await {
         match msg? {
             Message::Binary(data) => {
                 // decode the returned block proving report
-                let report = bincode::deserialize(&data)?;
-                reports.push(report);
+                let report: BlockProvingReport = bincode::deserialize(&data)?;
+
+                if let Some(csv_file_path) = report_path {
+                    // append the proving result to the csv file
+                    report.append_to_csv(csv_file_path)?;
+                } else {
+                    // output the proving result if the csv file is not specified
+                    info!("received proving result: {report}");
+                }
 
                 // for simplicity we only check the returned number
-                if reports.len() == block_count {
+                if block_count <= 1 {
                     break;
                 }
+                block_count -= 1;
             }
             Message::Close(frame) => {
                 info!("websocket closed by server: {frame:?}");
@@ -65,5 +74,5 @@ pub async fn wait_for_proving_complete(
     ping_thread.abort();
     info!("websocket disconnected");
 
-    Ok(reports)
+    Ok(())
 }
