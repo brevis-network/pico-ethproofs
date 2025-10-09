@@ -5022,6 +5022,7 @@ name = "proving-client"
 version = "0.1.0"
 dependencies = [
  "aggregator-proto",
+ "bincode",
  "common",
  "derive_more 2.0.1",
  "messages",
