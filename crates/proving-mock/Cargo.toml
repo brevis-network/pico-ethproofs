@@ -4,3 +4,18 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+# members
+aggregator-proto.workspace = true
+common.workspace = true
+proof-proto.workspace = true
+subblock-proto.workspace = true
+
+# misc
+derive_more.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tonic-web.workspace = true
+tonic.workspace = true
+tower-http.workspace = true
+tower.workspace = true
+tracing.workspace = true

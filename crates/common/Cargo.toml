@@ -8,6 +8,7 @@ edition.workspace = true
 anyhow.workspace = true
 crossbeam.workspace = true
 derive_more.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 tracing.workspace = true
 tracing-forest.workspace = true

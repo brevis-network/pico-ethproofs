@@ -11,6 +11,7 @@ use futures::future::join_all;
 use messages::{BlockMsgEndpoint, BlockMsgReceiver, BlockMsgSender};
 use proof_service::{config::ProofServiceConfig, service::ProofService};
 use proving_client::{client::ProvingClient, config::ProvingClientConfig};
+use proving_mock::{config::MockProvingServiceConfig, service::MockProvingService};
 use reporter::BlockReporter;
 use reqwest::Url;
 use scheduler::Scheduler;
@@ -18,6 +19,13 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 #[derive(Parser)]
 struct Args {
+    #[clap(
+        long,
+        default_value = "false",
+        help = "identify if enable mock proving service (only used for testing)"
+    )]
+    is_mock_proving: bool,
+
     #[clap(
         long,
         default_value = "false",
@@ -82,7 +90,7 @@ struct Args {
         env = "PROVING_AGG_URL",
         help = "Aggregator proving GRPC URL to request"
     )]
-    pub proving_agg_url: Url,
+    pub proving_agg_url: Option<Url>,
 
     #[clap(
         long,
@@ -90,7 +98,7 @@ struct Args {
         value_delimiter = ',',
         help = "Subbblock proving GRPC URLs separated by comma, e.g. `http://172.1.1.1:50052,http://172.2.2.2:50052`"
     )]
-    pub proving_subblock_urls: Vec<Url>,
+    pub proving_subblock_urls: Option<Vec<Url>>,
 }
 
 #[tokio::main]
@@ -100,10 +108,16 @@ async fn main() -> Result<()> {
     setup_logger();
 
     // parse the cli arguments
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     // collect the thread handles
     let mut handles = vec![];
+
+    if args.is_mock_proving {
+        // start mock proving service for testing and change the proving service URLs in internal
+        let mock_proving_service = init_mock_proving_service(&mut args);
+        handles.extend(mock_proving_service.run());
+    }
 
     // initialize fetch service
     let (fetch_service, fetch_service_receiver) = init_fetch_service(&args);
@@ -151,6 +165,19 @@ async fn main() -> Result<()> {
     join_all(handles).await;
 
     Ok(())
+}
+
+// initialize mock proving service
+fn init_mock_proving_service(args: &mut Args) -> Arc<MockProvingService> {
+    // create mock proving service
+    let config = MockProvingServiceConfig::new(args.max_grpc_msg_bytes, &args.proof_service_addr);
+    let service = MockProvingService::new(config);
+
+    // reset the mock proving urls to the arguments
+    args.proving_agg_url = Some(service.aggregator_url());
+    args.proving_subblock_urls = Some(service.subblock_urls());
+
+    service.into()
 }
 
 // initialize fetch-service
@@ -205,8 +232,12 @@ fn init_proving_client(args: &Args) -> (Arc<ProvingClient>, Arc<BlockMsgEndpoint
     // create proving-client instance
     let config = ProvingClientConfig::new(
         args.max_grpc_msg_bytes,
-        args.proving_agg_url.clone(),
-        args.proving_subblock_urls.clone(),
+        args.proving_agg_url
+            .clone()
+            .expect("eth-proofs: must set `proving_agg_url` or enable `is_mock_proving`"),
+        args.proving_subblock_urls
+            .clone()
+            .expect("eth-proofs: must set `proving_subblock_urls` or enable `is_mock_proving`"),
     );
     let proving_client = ProvingClient::new(config, comm_channel.endpoint1()).into();
 

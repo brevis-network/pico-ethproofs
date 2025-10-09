@@ -4,7 +4,8 @@ use futures::{SinkExt, StreamExt};
 use reqwest::Url;
 use std::path::PathBuf;
 use tokio::{
-    spawn,
+    select, spawn,
+    sync::oneshot,
     time::{Duration, sleep},
 };
 use tracing::{error, info};
@@ -14,36 +15,53 @@ use tungstenite::{Bytes, protocol::Message};
 const WS_PING_INTERVAL: u64 = 15;
 
 // wait proving complete for the specified number of requested blocks on a websocket connection
+// - ws_url: websocket URL to connect
+// - block_count: number of blocks to wait for complete
+// - report_path: csv file to append the block reports if it's specified
 pub async fn wait_for_proving_complete(
     ws_url: &Url,
     mut block_count: usize,
     report_path: &Option<PathBuf>,
 ) -> Result<()> {
     let url = ws_url.as_str();
-    info!("connecting to websocket: url = {url}");
+    info!("websocket-client: connecting to {url}");
 
-    let (stream, resp) = tokio_tungstenite::connect_async(url).await?;
-    info!("websocket connected with status: {}", resp.status());
+    let (ws_stream, ws_resp) = tokio_tungstenite::connect_async(url).await?;
+    info!(
+        "websocket-client: connected with status {}",
+        ws_resp.status(),
+    );
 
-    let (mut write, mut read) = stream.split();
+    // split to a websocket sender and receiver
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+
+    // create a oneshot channel for graceful shutdown
+    let (exit_sender, mut exit_receiver) = oneshot::channel();
 
     // send ping messages at intervals to keep the websocket connection alive
     let ping_thread = spawn(async move {
-        let interval = Duration::from_secs(WS_PING_INTERVAL);
-        let msg = Message::Ping(Bytes::new());
+        let ping_interval = Duration::from_secs(WS_PING_INTERVAL);
+        let ping_msg = Message::Ping(Bytes::new());
 
         loop {
-            if let Err(e) = write.send(msg.clone()).await {
-                error!("failed to send ping message to websocket: {e}");
-                break;
+            select! {
+                _ = sleep(ping_interval) => {
+                    if let Err(e) = ws_sender.send(ping_msg.clone()).await {
+                        error!("websocket-client: failed to send ping message {e}");
+                        break;
+                    }
+                }
+                _ = &mut exit_receiver => {
+                    info!("websocket-client: sending a Close meesage before exit");
+                    let _ = ws_sender.send(Message::Close(None)).await;
+                    break;
+                }
             }
-
-            sleep(interval).await
         }
     });
 
     // wait for receiving the proving reports of requested number of blocks
-    while let Some(msg) = read.next().await {
+    while let Some(msg) = ws_receiver.next().await {
         match msg? {
             Message::Binary(data) => {
                 // decode the returned block proving report
@@ -54,7 +72,7 @@ pub async fn wait_for_proving_complete(
                     report.append_to_csv(csv_file_path)?;
                 } else {
                     // output the proving result if the csv file is not specified
-                    info!("received proving result: {report}");
+                    info!("websocket-client: received proving result {report}");
                 }
 
                 // for simplicity we only check the returned number
@@ -64,15 +82,18 @@ pub async fn wait_for_proving_complete(
                 block_count -= 1;
             }
             Message::Close(frame) => {
-                info!("websocket closed by server: {frame:?}");
+                info!("websocket-client: closed by server {frame:?}");
                 break;
             }
-            msg => info!("received other message from websocket: {msg:?}"),
+            msg => info!("websocket-client: received other message {msg:?}"),
         }
     }
 
-    ping_thread.abort();
-    info!("websocket disconnected");
+    // send a exit message to the websocket ping thread
+    let _ = exit_sender.send(());
+    let _ = ping_thread.await;
+
+    info!("websocket-client: disconnected");
 
     Ok(())
 }

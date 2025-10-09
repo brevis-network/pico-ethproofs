@@ -15,6 +15,7 @@ fetcher.workspace = true
 messages.workspace = true
 proof-service.workspace = true
 proving-client.workspace = true
+proving-mock.workspace = true
 reporter.workspace = true
 scheduler.workspace = true
 

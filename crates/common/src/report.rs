@@ -49,6 +49,7 @@ impl BlockProvingReport {
 
     // set proving success
     pub fn on_proving_success(&mut self, cycles: u64, proving_milliseconds: u64, proof: Vec<u8>) {
+        self.success = true;
         self.cycles = cycles;
         self.proving_milliseconds = proving_milliseconds;
         self.proof = Some(proof);

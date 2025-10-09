@@ -15,6 +15,7 @@ axum.workspace = true
 bincode.workspace = true
 crossbeam.workspace = true
 derive_more.workspace = true
+futures-util.workspace = true
 serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
