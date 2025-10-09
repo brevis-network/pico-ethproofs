@@ -11,6 +11,7 @@ messages.workspace = true
 subblock-proto.workspace = true
 
 # misc
+bincode.workspace = true
 derive_more.workspace = true
 reqwest.workspace = true
 tokio.workspace = true

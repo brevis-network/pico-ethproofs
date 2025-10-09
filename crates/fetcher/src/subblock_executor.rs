@@ -64,6 +64,10 @@ impl SubblockExecutor {
             &block_dump_dir,
         );
 
+        // generate the subblock public values
+        let subblock_public_values =
+            generate_subblock_public_values(&subblock_output, &block_dump_dir);
+
         // generate the aggregation input
         info!("subblock-executor: generating aggregator input for block {block_number}");
         let agg_input = generate_agg_input(
@@ -71,10 +75,16 @@ impl SubblockExecutor {
             &subblock_output,
             agg_prover_client,
             subblock_vk_hash,
+            &subblock_public_values,
             &block_dump_dir,
         );
 
-        Ok(ProvingInputs::new(block_number, agg_input, subblock_inputs))
+        Ok(ProvingInputs::new(
+            block_number,
+            subblock_public_values,
+            agg_input,
+            subblock_inputs,
+        ))
     }
 }
 
@@ -117,32 +127,50 @@ fn generate_subblock_inputs(
         .collect()
 }
 
-// generate the aggregation input
-fn generate_agg_input(
-    is_input_emulated: bool,
+// generate the subblock public values
+fn generate_subblock_public_values(
     subblock_output: &SubblockHostOutput,
-    agg_prover_client: DefaultProverClient,
-    subblock_vk_hash: [u32; 8],
     block_dump_dir: &Option<PathBuf>,
-) -> Vec<u8> {
-    // construct aggregator public values
+) -> Vec<Vec<u8>> {
+    // construct the public values
     let mut public_values = vec![];
     for (input, output) in subblock_output
         .subblock_inputs
         .iter()
         .zip_eq(subblock_output.subblock_outputs.iter())
     {
-        let mut subblock_public_values = vec![];
-        bincode::serialize_into(&mut subblock_public_values, input)
+        let mut pv = vec![];
+        bincode::serialize_into(&mut pv, input)
             .expect("subblock-executor: failed to serialize subblock input into public values");
-        bincode::serialize_into(&mut subblock_public_values, output)
+        bincode::serialize_into(&mut pv, output)
             .expect("subblock-executor: failed to serialize subblock output into public values");
-        public_values.push(subblock_public_values);
+        public_values.push(pv);
     }
 
+    // save serialized public values if the dump dir is specified
+    if let Some(block_dump_dir) = block_dump_dir {
+        let file_path = block_dump_dir.join("public_values.bin");
+        let encoded_public_values = bincode::serialize(&public_values)
+            .expect("subblock-executor: failed to serialize subblock public values");
+        fs::write(file_path, &encoded_public_values)
+            .expect("subblock-executor: failed to dump subblock public values");
+    }
+
+    public_values
+}
+
+// generate the aggregation input
+fn generate_agg_input(
+    is_input_emulated: bool,
+    subblock_output: &SubblockHostOutput,
+    agg_prover_client: DefaultProverClient,
+    subblock_vk_hash: [u32; 8],
+    subblock_public_values: &Vec<Vec<u8>>,
+    block_dump_dir: &Option<PathBuf>,
+) -> Vec<u8> {
     // generate aggregator stdin builder
     let mut stdin_builder = agg_prover_client.new_stdin_builder();
-    stdin_builder.write::<Vec<Vec<u8>>>(&public_values);
+    stdin_builder.write::<Vec<Vec<u8>>>(subblock_public_values);
     stdin_builder.write::<[u32; 8]>(&subblock_vk_hash);
     stdin_builder.write(&subblock_output.agg_input);
     stdin_builder.write(&subblock_output.agg_input.parent_header().state_root);
