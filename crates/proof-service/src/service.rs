@@ -1,3 +1,4 @@
+use crate::config::ProofServiceConfig;
 use derive_more::Constructor;
 use messages::{BlockMsg, BlockMsgSender};
 use proof_proto::{
@@ -14,8 +15,6 @@ use tonic_web::GrpcWebLayer;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
-
-use crate::config::ProofServiceConfig;
 
 #[derive(Constructor, Debug)]
 pub struct ProofService {

@@ -55,6 +55,9 @@ impl Scheduler {
                             BlockMsg::Fetch(_) => {
                                 fetcher_endpoint.send(msg).expect("scheduler: failed to send a fetch message to fetcher thread");
                             }
+                            BlockMsg::Watch(_) => {
+                                report_sender.send(msg).expect("scheduler: failed to send a watch message to reporter thread");
+                            }
                             _ => {
                                 error!("scheduler: received a wrong message from fetch-service {msg:?}");
                             }

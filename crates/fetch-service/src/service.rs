@@ -68,9 +68,11 @@ async fn ws_handler(
     State(service): State<Arc<FetchService>>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async move {
+    info!("fetch-service: received a new websocket connection in ws_handler");
+    ws.on_upgrade(async move |socket| {
+        let service = Arc::clone(&service);
         if let Err(err) = service.handle_ws(socket).await {
-            error!("fetch-service: websocket returns error {err}");
+            error!("fetch-service: websocket returns an error {err}");
         }
     })
 }

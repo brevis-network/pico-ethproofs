@@ -1575,6 +1575,7 @@ dependencies = [
  "anyhow",
  "crossbeam",
  "derive_more 2.0.1",
+ "reqwest",
  "serde",
  "tracing",
  "tracing-forest 0.2.0",
@@ -2316,6 +2317,7 @@ dependencies = [
  "messages",
  "proof-service",
  "proving-client",
+ "proving-mock",
  "reporter",
  "reqwest",
  "scheduler",
@@ -2385,6 +2387,7 @@ dependencies = [
  "common",
  "crossbeam",
  "derive_more 2.0.1",
+ "futures-util",
  "messages",
  "proof-proto",
  "serde",
@@ -2400,6 +2403,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "common",
+ "crossbeam",
  "derive_more 2.0.1",
  "futures",
  "itertools 0.13.0",
@@ -5036,6 +5040,20 @@ dependencies = [
 [[package]]
 name = "proving-mock"
 version = "0.1.0"
+dependencies = [
+ "aggregator-proto",
+ "common",
+ "derive_more 2.0.1",
+ "proof-proto",
+ "reqwest",
+ "subblock-proto",
+ "tokio",
+ "tonic",
+ "tonic-web",
+ "tower 0.5.2",
+ "tower-http 0.5.2",
+ "tracing",
+]
 
 [[package]]
 name = "ptr_meta"
