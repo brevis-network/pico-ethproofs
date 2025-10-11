@@ -2,12 +2,15 @@ use crate::{config::BlockFetcherConfig, subblock_executor::SubblockExecutor};
 use alloy_provider::{Provider, ProviderBuilder, WsConnect};
 use anyhow::Result;
 use common::report::BlockProvingReport;
-use crossbeam::channel::TryRecvError;
 use derive_more::Constructor;
 use futures::StreamExt;
 use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver, ProvingMsg};
 use std::{sync::Arc, time::Instant};
-use tokio::{spawn, task::JoinHandle};
+use tokio::{
+    spawn,
+    sync::{Mutex, mpsc::error::TryRecvError},
+    task::JoinHandle,
+};
 use tracing::{error, info};
 
 // maximum fetch number of blocks in each batch
@@ -20,7 +23,7 @@ pub struct ProvingLatestFetcher {
     config: Arc<BlockFetcherConfig>,
 
     // receiving fetch messages
-    fetch_receiver: Arc<FetchMsgReceiver>,
+    fetch_receiver: Arc<Mutex<FetchMsgReceiver>>,
 
     // sending proving messages to the proving-client thread
     proving_sender: Arc<BlockMsgSender>,
@@ -34,6 +37,7 @@ impl ProvingLatestFetcher {
         info!("proving-latest-fetcher: start");
 
         spawn(async move {
+            let mut fetch_receiver = self.fetch_receiver.lock().await;
             loop {
                 // save the processed fetch number in the current batch
                 let mut batch_fetch_count = 0;
@@ -47,8 +51,8 @@ impl ProvingLatestFetcher {
                         "proving-latest-fetcher: waiting for a request fetch number for the latest blocks",
                     );
 
-                    match self.fetch_receiver.recv() {
-                        Ok(FetchMsg::ProveLatest { count }) => count,
+                    match fetch_receiver.recv().await {
+                        Some(FetchMsg::ProveLatest { count }) => count,
                         msg => {
                             error!(
                                 "proving-latest-fetcher: fetch receiver received an unexpected message {msg:?}",
@@ -60,7 +64,7 @@ impl ProvingLatestFetcher {
                     info!(
                         "proving-latest-fetcher: try to receive a new fetch number for the latest blocks",
                     );
-                    match self.fetch_receiver.try_recv() {
+                    match fetch_receiver.try_recv() {
                         Ok(FetchMsg::ProveLatest { count }) => count,
                         Err(TryRecvError::Empty) => {
                             // received no message and return the same remaining count

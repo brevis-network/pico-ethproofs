@@ -1,108 +1,88 @@
-pub use crossbeam::channel::{Receiver, Sender};
+pub use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use anyhow::{Result, anyhow};
-use crossbeam::channel::unbounded;
+use derive_more::Constructor;
 use std::sync::Arc;
+use tokio::sync::{Mutex, mpsc::unbounded_channel};
 
-/// unidirectional unbounded channel, sender -> receiver
-#[derive(Debug)]
+/// unidirectional unbounded async channel, sender -> receiver
+#[derive(Debug, Clone)]
 pub struct SingleUnboundedChannel<T> {
-    sender: Arc<Sender<T>>,
-    receiver: Arc<Receiver<T>>,
+    sender: Arc<UnboundedSender<T>>,
+    receiver: Arc<Mutex<UnboundedReceiver<T>>>,
 }
 
 impl<T> Default for SingleUnboundedChannel<T> {
     fn default() -> Self {
-        let (sender, receiver) = unbounded();
-        let sender = Arc::new(sender);
-        let receiver = Arc::new(receiver);
+        let (sender, receiver) = unbounded_channel();
 
-        Self { sender, receiver }
+        Self {
+            sender: Arc::new(sender),
+            receiver: Arc::new(Mutex::new(receiver)),
+        }
     }
 }
 
 impl<T> SingleUnboundedChannel<T> {
-    pub fn sender(&self) -> Arc<Sender<T>> {
+    pub fn sender(&self) -> Arc<UnboundedSender<T>> {
         self.sender.clone()
     }
 
-    pub fn receiver(&self) -> Arc<Receiver<T>> {
+    pub fn receiver(&self) -> Arc<Mutex<UnboundedReceiver<T>>> {
         self.receiver.clone()
     }
 
     pub fn send(&self, msg: T) -> Result<()> {
         self.sender
             .send(msg)
-            .map_err(|err| anyhow!("failed to send msg: {err}"))?;
-
-        Ok(())
+            .map_err(|err| anyhow!("failed to send msg: {err}"))
     }
 
-    pub fn recv(&self) -> Result<T> {
-        let res = self
-            .receiver
+    pub async fn recv(&self) -> Result<T> {
+        let mut receiver = self.receiver.lock().await;
+        receiver
             .recv()
-            .map_err(|err| anyhow!("failed to receive msg: {err}"))?;
-
-        Ok(res)
+            .await
+            .ok_or_else(|| anyhow!("channel closed"))
     }
 }
 
-/// duplex unbounded endpoint includes a sender for type T and a receiver for type U
-#[derive(Clone, Debug)]
+/// duplex unbounded async endpoint includes a sender for type T and a receiver for type U
+#[derive(Constructor, Debug, Clone)]
 pub struct DuplexUnboundedEndpoint<T, U> {
-    sender: Sender<T>,
-    receiver: Receiver<U>,
+    sender: Arc<UnboundedSender<T>>,
+    receiver: Arc<Mutex<UnboundedReceiver<U>>>,
 }
 
 impl<T, U> DuplexUnboundedEndpoint<T, U> {
-    pub fn new(sender: Sender<T>, receiver: Receiver<U>) -> Self {
-        Self { sender, receiver }
+    pub fn sender(&self) -> Arc<UnboundedSender<T>> {
+        self.sender.clone()
     }
 
-    pub fn clone_inner(&self) -> Arc<Self>
-    where
-        T: Clone,
-        U: Clone,
-    {
-        Arc::new(self.clone())
-    }
-
-    pub fn clone_sender(&self) -> Arc<Sender<T>> {
-        Arc::new(self.sender.clone())
-    }
-
-    pub fn clone_receiver(&self) -> Arc<Receiver<U>> {
-        Arc::new(self.receiver.clone())
-    }
-
-    pub fn sender(&self) -> &Sender<T> {
-        &self.sender
-    }
-
-    pub fn receiver(&self) -> &Receiver<U> {
-        &self.receiver
+    pub fn receiver(&self) -> Arc<Mutex<UnboundedReceiver<U>>> {
+        self.receiver.clone()
     }
 
     pub fn send(&self, msg: T) -> Result<()> {
         self.sender
             .send(msg)
-            .map_err(|err| anyhow!("failed to send msg: {err}"))?;
-
-        Ok(())
+            .map_err(|err| anyhow!("failed to send msg: {err}"))
     }
 
-    pub fn recv(&self) -> Result<U> {
-        let res = self
-            .receiver
+    pub async fn recv(&self) -> Result<U> {
+        let mut receiver = self.receiver.lock().await;
+        receiver
             .recv()
-            .map_err(|err| anyhow!("failed to receive msg: {err}"))?;
+            .await
+            .ok_or_else(|| anyhow!("channel closed"))
+    }
 
-        Ok(res)
+    pub fn clone_sender(&self) -> Arc<UnboundedSender<T>> {
+        Arc::new((*self.sender).clone())
     }
 }
 
-/// duplex unbounded channel, endpoint1(sender<T>, receiver<U>) <-> endpoint2(sender<U>, Receiver<T>)
+/// duplex unbounded async channel, endpoint1(sender<T>, receiver<U>) <-> endpoint2(sender<U>, Receiver<T>)
 #[derive(Debug)]
 pub struct DuplexUnboundedChannel<T, U> {
     endpoint1: Arc<DuplexUnboundedEndpoint<T, U>>,
@@ -111,11 +91,17 @@ pub struct DuplexUnboundedChannel<T, U> {
 
 impl<T, U> Default for DuplexUnboundedChannel<T, U> {
     fn default() -> Self {
-        let (sender1, receiver1) = unbounded();
-        let (sender2, receiver2) = unbounded();
+        let (sender1, receiver1) = unbounded_channel();
+        let (sender2, receiver2) = unbounded_channel();
 
-        let endpoint1 = Arc::new(DuplexUnboundedEndpoint::new(sender1, receiver2));
-        let endpoint2 = Arc::new(DuplexUnboundedEndpoint::new(sender2, receiver1));
+        let endpoint1 = Arc::new(DuplexUnboundedEndpoint::new(
+            Arc::new(sender1),
+            Arc::new(Mutex::new(receiver2)),
+        ));
+        let endpoint2 = Arc::new(DuplexUnboundedEndpoint::new(
+            Arc::new(sender2),
+            Arc::new(Mutex::new(receiver1)),
+        ));
 
         Self {
             endpoint1,

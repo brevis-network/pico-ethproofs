@@ -1573,10 +1573,10 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "crossbeam",
  "derive_more 2.0.1",
  "reqwest",
  "serde",
+ "tokio",
  "tracing",
  "tracing-forest 0.2.0",
  "tracing-subscriber 0.3.20",
@@ -2385,7 +2385,6 @@ dependencies = [
  "axum",
  "bincode",
  "common",
- "crossbeam",
  "derive_more 2.0.1",
  "futures-util",
  "messages",
@@ -2403,7 +2402,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "common",
- "crossbeam",
  "derive_more 2.0.1",
  "futures",
  "itertools 0.13.0",
@@ -5028,7 +5026,6 @@ dependencies = [
  "aggregator-proto",
  "bincode",
  "common",
- "crossbeam",
  "derive_more 2.0.1",
  "messages",
  "reqwest",
@@ -6379,7 +6376,6 @@ name = "scheduler"
 version = "0.1.0"
 dependencies = [
  "common",
- "crossbeam",
  "derive_more 2.0.1",
  "messages",
  "tokio",

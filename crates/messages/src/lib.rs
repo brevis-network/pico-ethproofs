@@ -1,5 +1,5 @@
 use common::{
-    channel::{DuplexUnboundedEndpoint, Receiver, Sender},
+    channel::{DuplexUnboundedEndpoint, UnboundedReceiver, UnboundedSender},
     fetch::{ProveBlockByNumberParams, ProveLatestBlockParams, ReproduceBlockByNumberParams},
     inputs::ProvingInputs,
     report::BlockProvingReport,
@@ -95,9 +95,9 @@ pub struct ProvingMsg {
 pub type ProvedMsg = CompleteProvingRequest;
 pub type ReportMsg = BlockProvingReport;
 
-pub type BlockMsgSender = Sender<BlockMsg>;
-pub type BlockMsgReceiver = Receiver<BlockMsg>;
+pub type BlockMsgSender = UnboundedSender<BlockMsg>;
+pub type BlockMsgReceiver = UnboundedReceiver<BlockMsg>;
 pub type BlockMsgEndpoint = DuplexUnboundedEndpoint<BlockMsg, BlockMsg>;
 
-pub type FetchMsgSender = Sender<FetchMsg>;
-pub type FetchMsgReceiver = Receiver<FetchMsg>;
+pub type FetchMsgSender = UnboundedSender<FetchMsg>;
+pub type FetchMsgReceiver = UnboundedReceiver<FetchMsg>;

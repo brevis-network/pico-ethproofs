@@ -1,23 +1,24 @@
 use derive_more::Constructor;
 use messages::{BlockMsg, BlockMsgReceiver, WatchMsg};
 use std::sync::Arc;
-use tokio::task::{JoinHandle, spawn_blocking};
+use tokio::{spawn, sync::Mutex, task::JoinHandle};
 use tracing::{error, info};
 
 #[derive(Constructor, Debug)]
 pub struct BlockReporter {
     // communication receiver for coordinating with the main scheduler
-    pub comm_receiver: Arc<BlockMsgReceiver>,
+    pub comm_receiver: Arc<Mutex<BlockMsgReceiver>>,
 }
 
 impl BlockReporter {
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
         info!("reporter: start");
 
-        spawn_blocking(move || {
+        spawn(async move {
             // saving the websocket watchers and will be removed as close if notification failed
             let mut watchers = vec![];
-            while let Ok(msg) = self.comm_receiver.recv() {
+            let mut comm_receiver = self.comm_receiver.lock().await;
+            while let Some(msg) = comm_receiver.recv().await {
                 match &msg {
                     BlockMsg::Watch(WatchMsg { sender }) => {
                         watchers.push(sender.clone());
