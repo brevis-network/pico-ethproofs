@@ -7,8 +7,9 @@ use axum::{
     routing::get,
 };
 use common::fetch::{
-    HTTP_PROVE_BLOCK_BY_NUMBER_PATH, HTTP_PROVE_LATEST_BLOCK_PATH, ProveBlockByNumberParams,
-    ProveLatestBlockParams,
+    HTTP_PROVE_BLOCK_BY_NUMBER_PATH, HTTP_PROVE_LATEST_BLOCK_PATH,
+    HTTP_REPRODUCE_BLOCK_BY_NUMBER_PATH, ProveBlockByNumberParams, ProveLatestBlockParams,
+    ReproduceBlockByNumberParams,
 };
 use derive_more::Constructor;
 use messages::BlockMsgSender;
@@ -46,6 +47,14 @@ impl FetchService {
                 // - count: it's optional and `1` is the default value, it specifies the number of latest blocks
                 //   to prove
                 .route(HTTP_PROVE_LATEST_BLOCK_PATH, get(prove_latest_block))
+                // HTTP Get request path for reproducing blocks by the specified block number
+                // It supports two parameters:
+                // - start_block_num: it specifies the `start` block number to reproduce
+                // - count: it's optional and `1` is the default value, it specifies the number of blocks to reproduce
+                .route(
+                    HTTP_REPRODUCE_BLOCK_BY_NUMBER_PATH,
+                    get(reproduce_block_by_number),
+                )
                 .with_state(self);
 
             // listen on the specified socket address
@@ -98,6 +107,19 @@ async fn prove_latest_block(
     info!("fetch-service: received prove_latest_block with params {params:?}");
 
     service.prove_latest_block(params).map_or_else(
+        |e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+        |_| (StatusCode::OK, "OK".to_string()),
+    )
+}
+
+// handle `reproduce_block_by_number` HTTP Get request
+async fn reproduce_block_by_number(
+    State(service): State<Arc<FetchService>>,
+    Query(params): Query<ReproduceBlockByNumberParams>,
+) -> impl IntoResponse {
+    info!("fetch-service: received reproduce_block_by_number with params {params:?}");
+
+    service.reproduce_block_by_number(params).map_or_else(
         |e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
         |_| (StatusCode::OK, "OK".to_string()),
     )

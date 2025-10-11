@@ -1,6 +1,9 @@
 use reqwest::Url;
 use std::net::SocketAddr;
 
+// maximum number of subblocks for proving
+pub const MAX_NUM_SUBBLOCKS: usize = 7;
+
 // convert a socket address to an url
 // - addr: socket address
 // - scheme_prefix: url scheme prefix , e.g. `http://` or `https://`

@@ -1,5 +1,5 @@
-use crate::config::{MockProvingServiceConfig, NUM_MOCK_PROVING_SUBBLOCKS};
-use common::utils::addr_to_url;
+use crate::config::MockProvingServiceConfig;
+use common::utils::{MAX_NUM_SUBBLOCKS, addr_to_url};
 use derive_more::Constructor;
 use reqwest::Url;
 use std::sync::Arc;
@@ -22,7 +22,7 @@ impl MockProvingService {
     pub fn subblock_urls(&self) -> Vec<Url> {
         let url = addr_to_url(&self.subblock_addr(), "http://");
 
-        vec![url; NUM_MOCK_PROVING_SUBBLOCKS]
+        vec![url; MAX_NUM_SUBBLOCKS]
     }
 
     pub fn run(self: Arc<Self>) -> Vec<JoinHandle<()>> {

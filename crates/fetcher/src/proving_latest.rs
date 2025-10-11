@@ -15,7 +15,7 @@ const NUM_BLOCKS_PER_BATCH: usize = 10;
 
 // sub block fetcher for fetching the latest blocks by a count specified requested number of blocks
 #[derive(Constructor)]
-pub struct LatestFetcher {
+pub struct ProvingLatestFetcher {
     // fetcher configuration
     config: Arc<BlockFetcherConfig>,
 
@@ -29,9 +29,9 @@ pub struct LatestFetcher {
     subblock_executor: Arc<SubblockExecutor>,
 }
 
-impl LatestFetcher {
+impl ProvingLatestFetcher {
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
-        info!("latest-fetcher: start");
+        info!("proving-latest-fetcher: start");
 
         spawn(async move {
             loop {
@@ -44,31 +44,31 @@ impl LatestFetcher {
                 // handle latest block fetch message and update remaining count if necessary
                 let new_count = if remaining_count == 0 {
                     info!(
-                        "latest-fetcher: waiting for a request fetch number for the latest blocks",
+                        "proving-latest-fetcher: waiting for a request fetch number for the latest blocks",
                     );
 
                     match self.fetch_receiver.recv() {
-                        Ok(FetchMsg::Latest { count }) => count,
+                        Ok(FetchMsg::ProveLatest { count }) => count,
                         msg => {
                             error!(
-                                "latest-fetcher: fetch receiver received an unexpected message {msg:?}",
+                                "proving-latest-fetcher: fetch receiver received an unexpected message {msg:?}",
                             );
                             break;
                         }
                     }
                 } else {
                     info!(
-                        "latest-fetcher: try to receive a new fetch number for the latest blocks",
+                        "proving-latest-fetcher: try to receive a new fetch number for the latest blocks",
                     );
                     match self.fetch_receiver.try_recv() {
-                        Ok(FetchMsg::Latest { count }) => count,
+                        Ok(FetchMsg::ProveLatest { count }) => count,
                         Err(TryRecvError::Empty) => {
                             // received no message and return the same remaining count
                             remaining_count
                         }
                         msg => {
                             error!(
-                                "latest-fetcher: fetch receiver received an unexpected message {msg:?}",
+                                "proving-latest-fetcher: fetch receiver received an unexpected message {msg:?}",
                             );
                             break;
                         }
@@ -78,7 +78,7 @@ impl LatestFetcher {
                 // set the remaining count to the maximum value compared with new request
                 remaining_count = remaining_count.max(new_count);
                 info!(
-                    "latest-fetcher: received latest fetch message of count {new_count} and update remaining count to {remaining_count}",
+                    "proving-latest-fetcher: received latest fetch message of count {new_count} and update remaining count to {remaining_count}",
                 );
 
                 if remaining_count == 0 {
@@ -91,24 +91,26 @@ impl LatestFetcher {
                 let provider = ProviderBuilder::new()
                     .connect_ws(ws_conn)
                     .await
-                    .expect("latest-fetcher: failed to connect to rpc websocket URL");
+                    .expect("proving-latest-fetcher: failed to connect to rpc websocket URL");
                 let subscription = provider
                     .subscribe_blocks()
                     .await
-                    .expect("latest-fetcher: failed to subscribe the latest blocks");
+                    .expect("proving-latest-fetcher: failed to subscribe the latest blocks");
                 let mut latest_block_receiver = subscription.into_stream();
 
                 // handle the new block notification from the websocket rpc
                 while let Some(header) = latest_block_receiver.next().await {
                     let block_number = header.number;
                     info!(
-                        "latest-fetcher: rpc websocket connection received a new block {block_number}",
+                        "proving-latest-fetcher: rpc websocket connection received a new block {block_number}",
                     );
 
                     if let Err(e) = self.fetch_block(block_number).await {
-                        error!("latest-fetcher: failed to fetch block-{block_number} {e:?}",);
+                        error!(
+                            "proving-latest-fetcher: failed to fetch block-{block_number} {e:?}",
+                        );
                     }
-                    info!("latest-fetcher: succeeded for fetching block {block_number}");
+                    info!("proving-latest-fetcher: succeeded for fetching block {block_number}");
 
                     batch_fetch_count += 1;
                     remaining_count -= 1;

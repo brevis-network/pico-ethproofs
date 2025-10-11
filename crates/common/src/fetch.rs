@@ -14,6 +14,12 @@ pub const HTTP_PROVE_BLOCK_BY_NUMBER_PATH: &str = "/prove_block_by_number";
 //   to prove
 pub const HTTP_PROVE_LATEST_BLOCK_PATH: &str = "/prove_latest_block";
 
+// HTTP Get request path for reproducing blocks by the specified block number
+// It supports two parameters:
+// - start_block_num: it specifies the `start` block number to reproduce
+// - count: it's optional and `1` is the default value, it specifies the number of blocks to reproduce
+pub const HTTP_REPRODUCE_BLOCK_BY_NUMBER_PATH: &str = "/reproduce_block_by_number";
+
 // HTTP Get `prove_block_by_number` parameters
 #[derive(Constructor, Debug, Deserialize)]
 pub struct ProveBlockByNumberParams {
@@ -50,6 +56,30 @@ impl ProveLatestBlockParams {
     pub fn to_hash_map(&self) -> HashMap<&'static str, u64> {
         let mut params = HashMap::new();
 
+        if let Some(count) = self.count {
+            params.insert("count", count);
+        }
+
+        params
+    }
+}
+
+// HTTP Get `reproduce_block_by_number` parameters
+#[derive(Constructor, Debug, Deserialize)]
+pub struct ReproduceBlockByNumberParams {
+    // specifies the `start` block number to reproduce
+    pub start_block_num: u64,
+
+    // specifies the number of blocks to reproduce
+    pub count: Option<u64>,
+}
+
+impl ReproduceBlockByNumberParams {
+    // convert to hash map
+    pub fn to_hash_map(&self) -> HashMap<&'static str, u64> {
+        let mut params = HashMap::new();
+
+        params.insert("start_block_num", self.start_block_num);
         if let Some(count) = self.count {
             params.insert("count", count);
         }

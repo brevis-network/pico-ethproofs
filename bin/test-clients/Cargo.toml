@@ -11,6 +11,10 @@ path = "src/prove_block_by_number.rs"
 name = "prove-latest-block"
 path = "src/prove_latest_block.rs"
 
+[[bin]]
+name = "reproduce-block-by-number"
+path = "src/reproduce_block_by_number.rs"
+
 [dependencies]
 # members
 common.workspace = true

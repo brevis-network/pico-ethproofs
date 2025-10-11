@@ -11,6 +11,10 @@ pub struct BlockFetcherConfig {
     // base directory for saving input files; nothing will be saved if not specified
     pub input_dump_dir: Option<PathBuf>,
 
+    // base directory for reproducing blocks by loading input files; it could be the same directory
+    // as `input_dump_dir`
+    pub input_load_dir: Option<PathBuf>,
+
     // http url of rpc node
     pub rpc_http_url: Url,
 

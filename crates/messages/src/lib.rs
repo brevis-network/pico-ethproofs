@@ -1,6 +1,6 @@
 use common::{
     channel::{DuplexUnboundedEndpoint, Receiver, Sender},
-    fetch::{ProveBlockByNumberParams, ProveLatestBlockParams},
+    fetch::{ProveBlockByNumberParams, ProveLatestBlockParams, ReproduceBlockByNumberParams},
     inputs::ProvingInputs,
     report::BlockProvingReport,
 };
@@ -32,7 +32,7 @@ pub enum BlockMsg {
 
 impl From<ProveBlockByNumberParams> for BlockMsg {
     fn from(params: ProveBlockByNumberParams) -> Self {
-        let fetch_msg = FetchMsg::FromStart {
+        let fetch_msg = FetchMsg::ProveFromStart {
             start_block_number: params.start_block_num,
             count: params.count.unwrap_or(DEFAULT_PARAM_COUNT),
         };
@@ -43,7 +43,18 @@ impl From<ProveBlockByNumberParams> for BlockMsg {
 
 impl From<ProveLatestBlockParams> for BlockMsg {
     fn from(params: ProveLatestBlockParams) -> Self {
-        let fetch_msg = FetchMsg::Latest {
+        let fetch_msg = FetchMsg::ProveLatest {
+            count: params.count.unwrap_or(DEFAULT_PARAM_COUNT),
+        };
+
+        Self::Fetch(fetch_msg)
+    }
+}
+
+impl From<ReproduceBlockByNumberParams> for BlockMsg {
+    fn from(params: ReproduceBlockByNumberParams) -> Self {
+        let fetch_msg = FetchMsg::ReproduceFromStart {
+            start_block_number: params.start_block_num,
             count: params.count.unwrap_or(DEFAULT_PARAM_COUNT),
         };
 
@@ -62,10 +73,13 @@ pub struct WatchMsg {
 #[derive(Clone, Debug)]
 pub enum FetchMsg {
     // fetch number of blocks starting from a specified block number
-    FromStart { start_block_number: u64, count: u64 },
+    ProveFromStart { start_block_number: u64, count: u64 },
 
     // fetch number of latest blocks
-    Latest { count: u64 },
+    ProveLatest { count: u64 },
+
+    // reproduce number of blocks starting from a specified block number
+    ReproduceFromStart { start_block_number: u64, count: u64 },
 }
 
 // proving request message
