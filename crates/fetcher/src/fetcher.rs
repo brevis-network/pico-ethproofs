@@ -97,7 +97,7 @@ impl BlockFetcher {
 
         // start the main fetcher thread
         handles.push(spawn(async move {
-            while let Ok(msg) = comm_endpoint.recv() {
+            while let Ok(msg) = comm_endpoint.recv().await {
                 match msg {
                     BlockMsg::Fetch(fetch_msg) => match fetch_msg {
                         FetchMsg::ProveFromStart { .. } => {

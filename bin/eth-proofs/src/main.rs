@@ -16,6 +16,7 @@ use reporter::BlockReporter;
 use reqwest::Url;
 use scheduler::Scheduler;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use tokio::sync::Mutex;
 
 #[derive(Parser)]
 struct Args {
@@ -187,7 +188,7 @@ fn init_mock_proving_service(args: &mut Args) -> Arc<MockProvingService> {
 }
 
 // initialize fetch-service
-fn init_fetch_service(args: &Args) -> (Arc<FetchService>, Arc<BlockMsgReceiver>) {
+fn init_fetch_service(args: &Args) -> (Arc<FetchService>, Arc<Mutex<BlockMsgReceiver>>) {
     // create communication channel
     let comm_channel = SingleUnboundedChannel::default();
 
@@ -199,7 +200,7 @@ fn init_fetch_service(args: &Args) -> (Arc<FetchService>, Arc<BlockMsgReceiver>)
 }
 
 // initialize proof-service
-fn init_proof_service(args: &Args) -> (ProofService, Arc<BlockMsgReceiver>) {
+fn init_proof_service(args: &Args) -> (ProofService, Arc<Mutex<BlockMsgReceiver>>) {
     // create communication channel
     let comm_channel = SingleUnboundedChannel::default();
 

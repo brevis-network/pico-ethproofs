@@ -1,8 +1,7 @@
-use crossbeam::channel::select_biased;
 use derive_more::Constructor;
 use messages::{BlockMsg, BlockMsgEndpoint, BlockMsgReceiver, BlockMsgSender};
 use std::sync::Arc;
-use tokio::task::{JoinHandle, spawn_blocking};
+use tokio::{select, spawn, sync::Mutex, task::JoinHandle};
 use tracing::{error, info};
 
 // main scheduler for coordinating multiple threads
@@ -21,10 +20,10 @@ use tracing::{error, info};
 #[derive(Constructor)]
 pub struct Scheduler {
     // receiving and handling fetch requests from fetch-service
-    fetch_service_receiver: Arc<BlockMsgReceiver>,
+    fetch_service_receiver: Arc<Mutex<BlockMsgReceiver>>,
 
     // receiving and handling proving results
-    proof_service_receiver: Arc<BlockMsgReceiver>,
+    proof_service_receiver: Arc<Mutex<BlockMsgReceiver>>,
 
     // bidirectional endpoint for receiving the fetch requests and sending the proving requests
     fetcher_endpoint: Arc<BlockMsgEndpoint>,
@@ -46,10 +45,12 @@ impl Scheduler {
         let proving_client_endpoint = self.proving_client_endpoint.clone();
         let report_sender = self.reporter_sender.clone();
 
-        spawn_blocking(move || {
+        spawn(async move {
+            let mut fetch_service_receiver = fetch_service_receiver.lock().await;
+            let mut proof_service_receiver = proof_service_receiver.lock().await;
             loop {
-                select_biased! {
-                    recv(fetch_service_receiver) -> msg => {
+                select! {
+                    msg = fetch_service_receiver.recv() => {
                         let msg = msg.expect("scheduler: received an error message from fetch-service");
                         match msg {
                             BlockMsg::Fetch(_) => {
@@ -63,7 +64,7 @@ impl Scheduler {
                             }
                         }
                     }
-                    recv(proof_service_receiver) -> msg => {
+                    msg = proof_service_receiver.recv() => {
                         let msg = msg.expect("scheduler: received an error message from proof-service");
                         match msg {
                             BlockMsg::Proved(_) => {
@@ -74,7 +75,7 @@ impl Scheduler {
                             }
                         }
                     }
-                    recv(fetcher_endpoint.receiver()) -> msg => {
+                    msg = fetcher_endpoint.recv() => {
                         let msg = msg.expect("scheduler: received an error message from fetcher thread");
                         match msg {
                             BlockMsg::Proving(_) => {
@@ -85,7 +86,7 @@ impl Scheduler {
                             }
                         }
                     }
-                    recv(proving_client_endpoint.receiver()) -> msg => {
+                    msg = proving_client_endpoint.recv() => {
                         let msg = msg.expect("scheduler: received an error message from proving-client thread");
                         match msg {
                             BlockMsg::Report(_) => {

@@ -8,7 +8,7 @@ use common::channel::SingleUnboundedChannel;
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use messages::{BlockMsg, WatchMsg};
 use std::sync::Arc;
-use tokio::{spawn, sync::mpsc::unbounded_channel, task::spawn_blocking};
+use tokio::{spawn, sync::mpsc::unbounded_channel};
 use tracing::{info, warn};
 
 impl FetchService {
@@ -39,8 +39,9 @@ impl FetchService {
         let (msg_sender, mut msg_receiver) = unbounded_channel();
 
         let msg_sender_clone = msg_sender.clone();
-        let proved_receiving_handle = spawn_blocking(move || {
-            while let Ok(BlockMsg::Report(report)) = proved_receiver.recv() {
+        let proved_receiving_handle = spawn(async move {
+            let mut proved_receiver = proved_receiver.lock().await;
+            while let Some(BlockMsg::Report(report)) = proved_receiver.recv().await {
                 // serialize block report
                 let report_bytes = bincode::serialize(&report)
                     .expect("fetch-service: failed to serialize block report in websocket");

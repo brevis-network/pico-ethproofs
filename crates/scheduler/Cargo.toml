@@ -9,7 +9,6 @@ common.workspace = true
 messages.workspace = true
 
 # misc
-crossbeam.workspace = true
 derive_more.workspace = true
 tokio.workspace = true
 tracing.workspace = true

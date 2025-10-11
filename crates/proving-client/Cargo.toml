@@ -12,7 +12,6 @@ subblock-proto.workspace = true
 
 # misc
 bincode.workspace = true
-crossbeam.workspace = true
 derive_more.workspace = true
 reqwest.workspace = true
 tokio.workspace = true

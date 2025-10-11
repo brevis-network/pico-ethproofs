@@ -4,7 +4,7 @@ use common::{inputs::ProvingInputs, report::BlockProvingReport};
 use derive_more::Constructor;
 use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver, ProvingMsg};
 use std::{sync::Arc, time::Instant};
-use tokio::{spawn, task::JoinHandle};
+use tokio::{spawn, sync::Mutex, task::JoinHandle};
 use tracing::{error, info};
 
 // sub block fetcher for reproducing blocks by a start block number and a count specified requested
@@ -15,7 +15,7 @@ pub struct ReproducingFromStartFetcher {
     config: Arc<BlockFetcherConfig>,
 
     // receiving fetch messages
-    fetch_receiver: Arc<FetchMsgReceiver>,
+    fetch_receiver: Arc<Mutex<FetchMsgReceiver>>,
 
     // sending proving messages to the proving-client thread
     proving_sender: Arc<BlockMsgSender>,
@@ -26,7 +26,8 @@ impl ReproducingFromStartFetcher {
         info!("reproducing-from-start-fetcher: start");
 
         spawn(async move {
-            while let Ok(msg) = self.fetch_receiver.recv() {
+            let mut fetch_receiver = self.fetch_receiver.lock().await;
+            while let Some(msg) = fetch_receiver.recv().await {
                 match msg {
                     FetchMsg::ReproduceFromStart {
                         start_block_number,
