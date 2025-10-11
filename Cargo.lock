@@ -5028,6 +5028,7 @@ dependencies = [
  "aggregator-proto",
  "bincode",
  "common",
+ "crossbeam",
  "derive_more 2.0.1",
  "messages",
  "reqwest",

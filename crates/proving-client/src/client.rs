@@ -1,13 +1,17 @@
 use crate::config::ProvingClientConfig;
 use aggregator_proto::{ProveAggregationRequest, aggregator_client::AggregatorClient};
 use common::inputs::ProvingInputs;
+use crossbeam::channel::RecvTimeoutError;
 use derive_more::Constructor;
 use messages::{BlockMsg, BlockMsgEndpoint};
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, sync::Arc, time::Duration};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{spawn, task::JoinHandle};
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{error, info};
+
+// maximum waiting time for proving complete
+const MAX_PROVING_WAITING_SECONDS: u64 = 120;
 
 #[derive(Constructor, Debug)]
 pub struct ProvingClient {
@@ -32,9 +36,15 @@ impl ProvingClient {
             let mut proving_block_report = None;
             // queue for saving the pending messages when a block is proving
             let mut pending_msgs = VecDeque::new();
-            while let Ok(msg) = self.comm_endpoint.recv() {
+            loop {
+                // try to receive a proving or proved message with a timeout
+                let msg = self
+                    .comm_endpoint
+                    .receiver()
+                    .recv_timeout(Duration::from_secs(MAX_PROVING_WAITING_SECONDS));
+
                 match msg {
-                    BlockMsg::Proving(proving_msg) => {
+                    Ok(BlockMsg::Proving(proving_msg)) => {
                         if proving_block_report.is_none() {
                             // send the proving inputs to aggregator and subblock grpc services
                             send_proving_inputs(
@@ -58,7 +68,7 @@ impl ProvingClient {
                             pending_msgs.push_back(proving_msg);
                         }
                     }
-                    BlockMsg::Proved(proved_msg) => {
+                    Ok(BlockMsg::Proved(proved_msg)) => {
                         let mut report = proving_block_report.unwrap();
                         let block_number = report.block_number;
                         proving_block_report = None;
@@ -102,7 +112,18 @@ impl ProvingClient {
                             proving_block_report = Some(report);
                         }
                     }
-                    _ => error!("proving-client: received a wrong message {msg:?}"),
+                    Err(RecvTimeoutError::Timeout) => {
+                        if let Some(report) = &proving_block_report {
+                            let block_number = report.block_number;
+                            info!("proving-client: proving timeout for block {block_number}");
+
+                            todo!("proving-client: implement proving timeout handling");
+                        }
+                    }
+                    _ => {
+                        error!("proving-client: received an error message {msg:?}");
+                        break;
+                    }
                 }
             }
             info!("proving-client: stopped");
