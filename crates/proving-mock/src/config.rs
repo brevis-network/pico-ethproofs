@@ -2,9 +2,6 @@ use common::utils::addr_to_url;
 use reqwest::Url;
 use std::{net::SocketAddr, sync::Arc};
 
-// number of mock subblock grpc services
-pub const NUM_MOCK_PROVING_SUBBLOCKS: usize = 7;
-
 // mock proving aggregator address
 pub const MOCK_PROVING_AGGREGATOR_ADDR: &str = "[::1]:55551";
 

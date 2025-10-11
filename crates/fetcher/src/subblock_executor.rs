@@ -6,7 +6,7 @@ use itertools::Itertools;
 use pico_sdk::{HashableKey, client::DefaultProverClient};
 use rsp_client_executor::{ChainVariant, io::SubblockHostOutput};
 use rsp_host_executor::HostExecutor;
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{fs, sync::Arc};
 use tracing::info;
 
 // subblock executor for generating subblock and aggregation inputs
@@ -29,16 +29,6 @@ impl SubblockExecutor {
 
     // generate subblock and aggregation inputs
     pub async fn generate_inputs(&self, block_number: u64) -> Result<ProvingInputs> {
-        // create block dump dir if base dir is specified in configuration
-        let block_dump_dir = self
-            .config
-            .input_dump_dir
-            .as_ref()
-            .map(|dir| dir.join(block_number.to_string()));
-        if let Some(block_dump_dir) = &block_dump_dir {
-            fs::create_dir_all(block_dump_dir)?;
-        }
-
         // fetch eth block data and generate the subblock output
         info!(
             "subblock-executor: fetching and generating subblock output for block {block_number}",
@@ -61,12 +51,10 @@ impl SubblockExecutor {
             self.config.is_input_emulated,
             &subblock_output,
             subblock_prover_client,
-            &block_dump_dir,
         );
 
         // generate the subblock public values
-        let subblock_public_values =
-            generate_subblock_public_values(&subblock_output, &block_dump_dir);
+        let subblock_public_values = generate_subblock_public_values(&subblock_output);
 
         // generate the aggregation input
         info!("subblock-executor: generating aggregator input for block {block_number}");
@@ -76,15 +64,26 @@ impl SubblockExecutor {
             agg_prover_client,
             subblock_vk_hash,
             &subblock_public_values,
-            &block_dump_dir,
         );
 
-        Ok(ProvingInputs::new(
+        let subblock_public_values = bincode::serialize(&subblock_public_values)
+            .expect("subblock-executor: failed to serialize subblock public values");
+
+        let proving_inputs = ProvingInputs::new(
             block_number,
             subblock_public_values,
             agg_input,
             subblock_inputs,
-        ))
+        );
+
+        if let Some(dir) = &self.config.input_dump_dir {
+            // save proving inputs to the directory
+            proving_inputs
+                .dump_to_dir(dir)
+                .expect("subblock-executor: failed to dump the block proving inputs");
+        }
+
+        Ok(proving_inputs)
     }
 }
 
@@ -93,14 +92,12 @@ fn generate_subblock_inputs(
     is_input_emulated: bool,
     subblock_output: &SubblockHostOutput,
     subblock_prover_client: DefaultProverClient,
-    block_dump_dir: &Option<PathBuf>,
 ) -> Vec<Vec<u8>> {
     subblock_output
         .subblock_inputs
         .iter()
         .zip_eq(subblock_output.subblock_parent_states.iter())
-        .enumerate()
-        .map(|(i, (input, parent_state))| {
+        .map(|(input, parent_state)| {
             // generate subblock stdin builder
             let mut stdin_builder = subblock_prover_client.new_stdin_builder();
             stdin_builder.write(input);
@@ -112,26 +109,14 @@ fn generate_subblock_inputs(
             }
 
             // serialize the stdin builder
-            let encoded_input = bincode::serialize(&stdin_builder)
-                .expect("subblock-executor: failed to serialize subblock stdin builder");
-
-            // save serialized stdin builder if the dump dir is specified
-            if let Some(block_dump_dir) = block_dump_dir {
-                let file_path = block_dump_dir.join(format!("subblock_stdin_builder_{i}.bin"));
-                fs::write(file_path, &encoded_input)
-                    .expect("subblock-executor: failed to dump subblock input");
-            }
-
-            encoded_input
+            bincode::serialize(&stdin_builder)
+                .expect("subblock-executor: failed to serialize subblock stdin builder")
         })
         .collect()
 }
 
 // generate the subblock public values
-fn generate_subblock_public_values(
-    subblock_output: &SubblockHostOutput,
-    block_dump_dir: &Option<PathBuf>,
-) -> Vec<Vec<u8>> {
+fn generate_subblock_public_values(subblock_output: &SubblockHostOutput) -> Vec<Vec<u8>> {
     // construct the public values
     let mut public_values = vec![];
     for (input, output) in subblock_output
@@ -147,15 +132,6 @@ fn generate_subblock_public_values(
         public_values.push(pv);
     }
 
-    // save serialized public values if the dump dir is specified
-    if let Some(block_dump_dir) = block_dump_dir {
-        let file_path = block_dump_dir.join("public_values.bin");
-        let encoded_public_values = bincode::serialize(&public_values)
-            .expect("subblock-executor: failed to serialize subblock public values");
-        fs::write(file_path, &encoded_public_values)
-            .expect("subblock-executor: failed to dump subblock public values");
-    }
-
     public_values
 }
 
@@ -166,7 +142,6 @@ fn generate_agg_input(
     agg_prover_client: DefaultProverClient,
     subblock_vk_hash: [u32; 8],
     subblock_public_values: &Vec<Vec<u8>>,
-    block_dump_dir: &Option<PathBuf>,
 ) -> Vec<u8> {
     // generate aggregator stdin builder
     let mut stdin_builder = agg_prover_client.new_stdin_builder();
@@ -181,15 +156,6 @@ fn generate_agg_input(
     }
 
     // serialize the stdin builder
-    let encoded_input = bincode::serialize(&stdin_builder)
-        .expect("subblock-executor: failed to serialize aggregator stdin builder");
-
-    // save serialized stdin builder if the dump dir is specified
-    if let Some(block_dump_dir) = block_dump_dir {
-        let file_path = block_dump_dir.join("aggregator_stdin_builder.bin");
-        fs::write(file_path, &encoded_input)
-            .expect("subblock-executor: failed to dump subblock input");
-    }
-
-    encoded_input
+    bincode::serialize(&stdin_builder)
+        .expect("subblock-executor: failed to serialize aggregator stdin builder")
 }

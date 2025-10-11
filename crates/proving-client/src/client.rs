@@ -177,15 +177,13 @@ async fn send_proving_inputs(
         "proving-client: insufficient subblock proving services",
     );
     let num_subblocks = num_subblocks as u32;
-    let subblock_public_values = bincode::serialize(&proving_inputs.subblock_public_values)
-        .expect("proving-client: failed to serialize subblock public values");
 
     // TODO: check if this could be changed to run futures in parallel
     info!("proving-client: requesting with the aggregator input of block {block_number}");
     let req = ProveAggregationRequest {
         block_number,
         num_subblocks,
-        subblock_public_values,
+        subblock_public_values: proving_inputs.subblock_public_values,
         input: proving_inputs.agg_input,
     };
     agg_client

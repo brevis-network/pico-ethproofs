@@ -10,7 +10,7 @@ use tracing::{error, info};
 // sub block fetcher for fetching blocks by a start block number and a count specified requested
 // number of blocks
 #[derive(Constructor)]
-pub struct FromStartFetcher {
+pub struct ProvingFromStartFetcher {
     // receiving fetch messages
     fetch_receiver: Arc<FetchMsgReceiver>,
 
@@ -21,33 +21,35 @@ pub struct FromStartFetcher {
     subblock_executor: Arc<SubblockExecutor>,
 }
 
-impl FromStartFetcher {
+impl ProvingFromStartFetcher {
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
-        info!("from-start-fetcher: start");
+        info!("proving-from-start-fetcher: start");
 
         spawn(async move {
             while let Ok(msg) = self.fetch_receiver.recv() {
                 match msg {
-                    FetchMsg::FromStart {
+                    FetchMsg::ProveFromStart {
                         start_block_number,
                         count,
                     } => {
                         info!(
-                            "from-start-fetcher: received from-start fetch message of start_block_number = {start_block_number}, count = {count}",
+                            "proving-from-start-fetcher: received from-start fetch message of start_block_number = {start_block_number}, count = {count}",
                         );
                         for block_number in start_block_number..start_block_number + count {
-                            info!("from-start-fetcher: starting for fetching block {block_number}");
+                            info!(
+                                "proving-from-start-fetcher: starting for fetching block {block_number}"
+                            );
                             if let Err(e) = self.fetch_block(block_number).await {
                                 error!(
-                                    "from-start-fetcher: failed to fetch block-{block_number} {e:?}",
+                                    "proving-from-start-fetcher: failed to fetch block-{block_number} {e:?}",
                                 );
                             }
                             info!(
-                                "from-start-fetcher: succeeded for fetching block {block_number}",
+                                "proving-from-start-fetcher: succeeded for fetching block {block_number}",
                             );
                         }
                     }
-                    _ => error!("from-start-fetcher: received a wrong message {msg:?}"),
+                    _ => error!("proving-from-start-fetcher: received a wrong message {msg:?}"),
                 }
             }
         })

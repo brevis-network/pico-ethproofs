@@ -39,6 +39,12 @@ struct Args {
     )]
     input_dump_dir: Option<PathBuf>,
 
+    #[clap(
+        long,
+        help = "Base directory for reproducing blocks by loading input files; it could be the same directory as `input_dump_dir`"
+    )]
+    input_load_dir: Option<PathBuf>,
+
     #[clap(long, env = "RPC_HTTP_URL", help = "RPC node HTTP URL")]
     rpc_http_url: Url,
 
@@ -213,6 +219,7 @@ fn init_fetcher(args: &Args) -> (Arc<BlockFetcher>, Arc<BlockMsgEndpoint>) {
     let config = BlockFetcherConfig::new(
         args.is_input_emulated,
         args.input_dump_dir.clone(),
+        args.input_load_dir.clone(),
         args.rpc_http_url.clone(),
         args.rpc_ws_url.clone(),
         args.subblock_elf_path.clone(),
