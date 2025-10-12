@@ -72,7 +72,7 @@ impl BlockProvingReport {
         if !file_exists {
             writeln!(
                 file,
-                "block_number,success,cycles,proving_milliseconds,data_fetch_milliseconds",
+                "block_number,success,cycles,proving_seconds,data_fetch_seconds",
             )?;
         }
 
@@ -82,8 +82,8 @@ impl BlockProvingReport {
             self.block_number,
             self.success,
             self.cycles,
-            self.proving_milliseconds,
-            self.data_fetch_milliseconds,
+            self.proving_milliseconds as f64 / 1000.0,
+            self.data_fetch_milliseconds as f64 / 1000.0,
         )?;
 
         Ok(())
