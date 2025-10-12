@@ -2,6 +2,7 @@ use crate::config::ProvingClientConfig;
 use aggregator_proto::{ProveAggregationRequest, aggregator_client::AggregatorClient};
 use common::inputs::ProvingInputs;
 use derive_more::Constructor;
+use itertools::Itertools;
 use messages::{BlockMsg, BlockMsgEndpoint};
 use std::{collections::VecDeque, sync::Arc};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
@@ -176,6 +177,7 @@ async fn send_proving_inputs(
     let block_number = proving_inputs.block_number;
     let num_subblocks = proving_inputs.subblock_inputs.len();
     assert!(num_subblocks > 0, "proving-client: no subblocks");
+    let subblock_client_len = subblock_clients.len();
     assert!(
         num_subblocks <= subblock_clients.len(),
         "proving-client: insufficient subblock proving services",
@@ -195,7 +197,19 @@ async fn send_proving_inputs(
         .await
         .expect("proving-client: failed to request with the aggregator input");
 
-    for (i, input) in proving_inputs.subblock_inputs.into_iter().enumerate() {
+    // TRICKY: aggregator service needs the all subblock services ready, even if the subblock
+    // inputs are insufficient
+    let mut subblock_inputs = proving_inputs.subblock_inputs;
+    if subblock_inputs.len() < subblock_client_len {
+        let default_input = subblock_inputs[0].clone();
+        subblock_inputs.resize(subblock_client_len, default_input);
+    }
+
+    for (i, (client, input)) in subblock_clients
+        .iter_mut()
+        .zip_eq(subblock_inputs.into_iter())
+        .enumerate()
+    {
         info!("proving-client: requesting with the {i}-th subblock input of block {block_number}");
         let req = ProveSubblockRequest {
             block_number,
@@ -203,7 +217,7 @@ async fn send_proving_inputs(
             subblock_index: i as u32,
             input,
         };
-        subblock_clients[i]
+        client
             .prove_subblock(req)
             .await
             .expect("proving-client: failed to request with the subblock input");
