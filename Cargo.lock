@@ -5027,6 +5027,7 @@ dependencies = [
  "bincode",
  "common",
  "derive_more 2.0.1",
+ "itertools 0.13.0",
  "messages",
  "reqwest",
  "subblock-proto",
