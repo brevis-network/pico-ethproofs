@@ -4,18 +4,21 @@ use common::inputs::ProvingInputs;
 use derive_more::Constructor;
 use itertools::Itertools;
 use messages::{BlockMsg, BlockMsgEndpoint};
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, process::Command, sync::Arc};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{
     spawn,
     task::JoinHandle,
-    time::{Duration, timeout},
+    time::{Duration, sleep, timeout},
 };
 use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 // maximum waiting time for proving complete
 const MAX_PROVING_WAITING_SECONDS: u64 = 120;
+
+// wait time after docker retry before reinitializing clients (in seconds)
+const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
 
 #[derive(Constructor, Debug)]
 pub struct ProvingClient {
@@ -38,6 +41,8 @@ impl ProvingClient {
             info!("proving-client: waiting for proving and proved messages");
             // variable for saving the block number proving in progress
             let mut proving_block_report = None;
+            // variable for saving the last proving inputs (for retry on timeout)
+            let mut last_proving_inputs: Option<ProvingInputs> = None;
             // queue for saving the pending messages when a block is proving
             let mut pending_msgs = VecDeque::new();
             loop {
@@ -53,7 +58,7 @@ impl ProvingClient {
                         if proving_block_report.is_none() {
                             // send the proving inputs to aggregator and subblock grpc services
                             send_proving_inputs(
-                                proving_msg.proving_inputs,
+                                proving_msg.proving_inputs.clone(),
                                 &mut agg_client,
                                 &mut subblock_clients,
                             )
@@ -64,6 +69,8 @@ impl ProvingClient {
                                 "proving-client: save block {} as the current proving block in progress",
                                 report.block_number,
                             );
+                            // save the proving inputs for potential retry on timeout
+                            last_proving_inputs = Some(proving_msg.proving_inputs);
                             proving_block_report = Some(report);
                         } else {
                             info!(
@@ -103,7 +110,7 @@ impl ProvingClient {
                         if let Some(proving_msg) = pending_msgs.pop_front() {
                             // send the proving inputs to aggregator and subblock grpc services
                             send_proving_inputs(
-                                proving_msg.proving_inputs,
+                                proving_msg.proving_inputs.clone(),
                                 &mut agg_client,
                                 &mut subblock_clients,
                             )
@@ -114,15 +121,81 @@ impl ProvingClient {
                                 "proving-client: save block {} as the current proving block in progress",
                                 report.block_number,
                             );
+                            // save the proving inputs for potential retry on timeout
+                            last_proving_inputs = Some(proving_msg.proving_inputs);
                             proving_block_report = Some(report);
                         }
                     }
                     Err(_) => {
-                        if let Some(report) = &proving_block_report {
-                            let block_number = report.block_number;
-                            info!("proving-client: proving timeout for block {block_number}");
+                        if let Some(_report) = &proving_block_report {
+                            let block_number = _report.block_number;
+                            warn!("proving-client: proving timeout for block {block_number}");
+                            warn!(
+                                "proving-client: attempting to restart docker containers and retry"
+                            );
 
-                            todo!("proving-client: implement proving timeout handling");
+                            // Step 1: Restart docker containers using the retry script
+                            let retry_result = Command::new("./scripts/docker-multi-control.sh")
+                                .arg("retry")
+                                .status();
+
+                            match retry_result {
+                                Ok(status) if status.success() => {
+                                    info!(
+                                        "proving-client: docker containers restarted successfully"
+                                    );
+                                }
+                                Ok(status) => {
+                                    error!(
+                                        "proving-client: docker retry script failed with exit code: {:?}",
+                                        status.code()
+                                    );
+                                    panic!(
+                                        "proving-client: cannot recover from docker restart failure - manual intervention required"
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "proving-client: failed to execute docker retry script: {}",
+                                        e
+                                    );
+                                    panic!(
+                                        "proving-client: cannot recover from docker restart failure - manual intervention required"
+                                    );
+                                }
+                            }
+
+                            // Step 2: Wait for containers to fully initialize
+                            info!(
+                                "proving-client: waiting {}s for docker containers to initialize",
+                                DOCKER_RETRY_WAIT_SECONDS
+                            );
+                            sleep(Duration::from_secs(DOCKER_RETRY_WAIT_SECONDS)).await;
+
+                            // Step 3: Reinitialize aggregator and subblock clients
+                            info!("proving-client: reinitializing aggregator and subblock clients");
+                            agg_client = self.init_agg_proving_client().await;
+                            subblock_clients = self.init_subblock_proving_clients().await;
+
+                            // Step 4: Resend the last proving inputs to retry the failed block
+                            if let Some(ref inputs) = last_proving_inputs {
+                                info!(
+                                    "proving-client: resending proving inputs for block {}",
+                                    block_number
+                                );
+                                send_proving_inputs(
+                                    inputs.clone(),
+                                    &mut agg_client,
+                                    &mut subblock_clients,
+                                )
+                                .await;
+                                info!(
+                                    "proving-client: proving inputs resent, continuing to wait for proof"
+                                );
+                            } else {
+                                error!("proving-client: no proving inputs saved for retry");
+                                panic!("proving-client: cannot retry without proving inputs");
+                            }
                         }
                     }
                     _ => {
