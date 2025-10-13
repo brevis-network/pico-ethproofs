@@ -4,9 +4,10 @@ use common::inputs::ProvingInputs;
 use derive_more::Constructor;
 use itertools::Itertools;
 use messages::{BlockMsg, BlockMsgEndpoint};
-use std::{collections::VecDeque, process::Command, sync::Arc};
+use std::{collections::VecDeque, sync::Arc};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{
+    process::Command,
     spawn,
     task::JoinHandle,
     time::{Duration, sleep, timeout},
@@ -137,7 +138,8 @@ impl ProvingClient {
                             // Step 1: Restart docker containers using the retry script
                             let retry_result = Command::new("./scripts/docker-multi-control.sh")
                                 .arg("retry")
-                                .status();
+                                .status()
+                                .await;
 
                             match retry_result {
                                 Ok(status) if status.success() => {
