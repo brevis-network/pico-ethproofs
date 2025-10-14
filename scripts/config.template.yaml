@@ -18,6 +18,10 @@ aggregator:
   # Network settings
   orchestrator_listen_addr: "0.0.0.0:50052"      # Orchestrator service bind address
   final_aggregator_listen_addr: "0.0.0.0:50051"  # Final aggregator service bind address
+  
+  # Client addresses (what workers connect to)
+  orchestrator_client_addr: "http://192.168.1.10:50052"     # CHANGE THIS - Orchestrator address for workers to connect to
+  final_aggregator_client_addr: "http://192.168.1.10:50051" # CHANGE THIS - Final aggregator address for workers to connect to
 
 # =============================================================================
 # WORKER CONFIGURATION

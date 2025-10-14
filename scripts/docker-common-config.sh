@@ -18,6 +18,8 @@ load_yaml_config() {
             "export AGG_USER=\"" + .aggregator.user + "\"",
             "export AGG_PORT=\"" + (.aggregator.port | tostring) + "\"",
             "export AGG_REMOTE_DIR=\"" + .aggregator.remote_dir + "\"",
+            "export ORCHESTRATOR_CLIENT_ADDR=\"" + .aggregator.orchestrator_client_addr + "\"",
+            "export FINAL_AGGREGATOR_CLIENT_ADDR=\"" + .aggregator.final_aggregator_client_addr + "\"",
             "export PERF_DATA_DIR=\"" + .paths.perf_data_dir + "\"",
             "export PROGRAM_CACHE_FILE=\"" + .paths.program_cache_file + "\"",
             "export CONTAINER_DATA_MOUNT=\"" + .paths.container_data_mount + "\"",

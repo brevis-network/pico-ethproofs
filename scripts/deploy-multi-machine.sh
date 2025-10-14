@@ -2,10 +2,17 @@
 set -euo pipefail
 
 # =============================================================================
-# Multi-Machine Deployment Script
+# Multi-Machine Deployment Script (LEGACY)
 # =============================================================================
 # This script automates deployment of aggregator and subblock workers across
 # multiple machines via SSH.
+# 
+# NOTE: This is a legacy script with hardcoded configuration values.
+# For new deployments, please use the config.yaml-based system:
+#   1. Run: ./setup.sh init
+#   2. Edit: ../config.yaml 
+#   3. Run: ./setup.sh generate-env && ./setup.sh distribute
+#   4. Run: ./docker-multi-control.sh deploy
 # =============================================================================
 
 # Configuration

@@ -208,6 +208,8 @@ validate_config() {
         ".aggregator.host"
         ".aggregator.user"
         ".aggregator.remote_dir"
+        ".aggregator.orchestrator_client_addr"
+        ".aggregator.final_aggregator_client_addr"
         ".workers"
         ".paths.perf_data_dir"
         ".docker.prefix"
@@ -717,11 +719,11 @@ EOF
 # ---------------------
 # The orchestrator address to connect to (should match aggregator's ORCH_LISTEN_ADDR)
 # Format: http://HOST:PORT
-ORCH_ADDR=http://$(yq eval '.aggregator.host' "$config_file"):$(yq eval '.aggregator.orchestrator_listen_addr' "$config_file" | cut -d: -f2)
+ORCH_ADDR=$(yq eval '.aggregator.orchestrator_client_addr' "$config_file")
 
 # The final aggregator address to send deferred proofs to
 # Format: http://HOST:PORT
-FINAL_AGG_ADDR=http://$(yq eval '.aggregator.host' "$config_file"):$(yq eval '.aggregator.final_aggregator_listen_addr' "$config_file" | cut -d: -f2)
+FINAL_AGG_ADDR=$(yq eval '.aggregator.final_aggregator_client_addr' "$config_file")
 
 # Worker ID (unique identifier for this worker)
 # This should match one of the values in aggregator's ORCH_EXPECTED_WORKERS
