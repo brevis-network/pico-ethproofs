@@ -238,7 +238,9 @@ impl ProvingClient {
         loop {
             // Check for cancellation first
             if cancellation_token.is_cancelled() {
-                info!("proving-client: cancellation requested, stopping aggregator client initialization");
+                info!(
+                    "proving-client: cancellation requested, stopping aggregator client initialization"
+                );
                 panic!("proving-client: cancelled during aggregator client initialization");
             }
 
@@ -286,7 +288,9 @@ impl ProvingClient {
             let client = loop {
                 // Check for cancellation first
                 if cancellation_token.is_cancelled() {
-                    info!("proving-client: cancellation requested, stopping subblock client initialization");
+                    info!(
+                        "proving-client: cancellation requested, stopping subblock client initialization"
+                    );
                     panic!("proving-client: cancelled during subblock client initialization");
                 }
 
