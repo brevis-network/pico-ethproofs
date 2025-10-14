@@ -30,8 +30,6 @@ jobs:
         run: cargo fmt --all -- --check
 
   lint:
-    # enable after making the all depdendencies public
-    if: false
     name: lint
     runs-on: ubuntu-latest
     steps:
