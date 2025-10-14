@@ -7,15 +7,23 @@ use messages::{BlockMsg, BlockMsgEndpoint};
 use std::{collections::VecDeque, sync::Arc};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{
-    spawn,
+    process::Command,
+    select, spawn,
     task::JoinHandle,
-    time::{Duration, timeout},
+    time::{Duration, sleep, timeout},
 };
+use tokio_util::sync::CancellationToken;
 use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 // maximum waiting time for proving complete
 const MAX_PROVING_WAITING_SECONDS: u64 = 120;
+
+// wait time after docker retry before reinitializing clients (in seconds)
+const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
+
+// retry interval for client connection attempts (in seconds)
+const CLIENT_RETRY_INTERVAL_SECONDS: u64 = 2;
 
 #[derive(Constructor, Debug)]
 pub struct ProvingClient {
@@ -30,14 +38,29 @@ impl ProvingClient {
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
         info!("proving-client: start");
 
+        let cancellation_token = CancellationToken::new();
+        let token = cancellation_token.clone();
+
+        // Set up signal handling for graceful shutdown
+        let shutdown_token = token.clone();
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to listen for ctrl+c");
+            info!("proving-client: received ctrl+c, initiating graceful shutdown");
+            shutdown_token.cancel();
+        });
+
         spawn(async move {
             info!("proving-client: initialize aggregator and subblock proving clients");
-            let mut agg_client = self.init_agg_proving_client().await;
-            let mut subblock_clients = self.init_subblock_proving_clients().await;
+            let mut agg_client = self.init_agg_proving_client(&token).await;
+            let mut subblock_clients = self.init_subblock_proving_clients(&token).await;
 
             info!("proving-client: waiting for proving and proved messages");
             // variable for saving the block number proving in progress
             let mut proving_block_report = None;
+            // variable for saving the last proving inputs (for retry on timeout)
+            let mut last_proving_inputs: Option<ProvingInputs> = None;
             // queue for saving the pending messages when a block is proving
             let mut pending_msgs = VecDeque::new();
             loop {
@@ -53,7 +76,7 @@ impl ProvingClient {
                         if proving_block_report.is_none() {
                             // send the proving inputs to aggregator and subblock grpc services
                             send_proving_inputs(
-                                proving_msg.proving_inputs,
+                                proving_msg.proving_inputs.clone(),
                                 &mut agg_client,
                                 &mut subblock_clients,
                             )
@@ -64,6 +87,8 @@ impl ProvingClient {
                                 "proving-client: save block {} as the current proving block in progress",
                                 report.block_number,
                             );
+                            // save the proving inputs for potential retry on timeout
+                            last_proving_inputs = Some(proving_msg.proving_inputs);
                             proving_block_report = Some(report);
                         } else {
                             info!(
@@ -103,7 +128,7 @@ impl ProvingClient {
                         if let Some(proving_msg) = pending_msgs.pop_front() {
                             // send the proving inputs to aggregator and subblock grpc services
                             send_proving_inputs(
-                                proving_msg.proving_inputs,
+                                proving_msg.proving_inputs.clone(),
                                 &mut agg_client,
                                 &mut subblock_clients,
                             )
@@ -114,15 +139,82 @@ impl ProvingClient {
                                 "proving-client: save block {} as the current proving block in progress",
                                 report.block_number,
                             );
+                            // save the proving inputs for potential retry on timeout
+                            last_proving_inputs = Some(proving_msg.proving_inputs);
                             proving_block_report = Some(report);
                         }
                     }
                     Err(_) => {
-                        if let Some(report) = &proving_block_report {
-                            let block_number = report.block_number;
-                            info!("proving-client: proving timeout for block {block_number}");
+                        if let Some(_report) = &proving_block_report {
+                            let block_number = _report.block_number;
+                            warn!("proving-client: proving timeout for block {block_number}");
+                            warn!(
+                                "proving-client: attempting to restart docker containers and retry"
+                            );
 
-                            todo!("proving-client: implement proving timeout handling");
+                            // Step 1: Restart docker containers using the retry script
+                            let retry_result = Command::new("./scripts/docker-multi-control.sh")
+                                .arg("retry")
+                                .status()
+                                .await;
+
+                            match retry_result {
+                                Ok(status) if status.success() => {
+                                    info!(
+                                        "proving-client: docker containers restarted successfully"
+                                    );
+                                }
+                                Ok(status) => {
+                                    error!(
+                                        "proving-client: docker retry script failed with exit code: {:?}",
+                                        status.code()
+                                    );
+                                    panic!(
+                                        "proving-client: cannot recover from docker restart failure - manual intervention required"
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "proving-client: failed to execute docker retry script: {}",
+                                        e
+                                    );
+                                    panic!(
+                                        "proving-client: cannot recover from docker restart failure - manual intervention required"
+                                    );
+                                }
+                            }
+
+                            // Step 2: Wait for containers to fully initialize
+                            info!(
+                                "proving-client: waiting {}s for docker containers to initialize",
+                                DOCKER_RETRY_WAIT_SECONDS
+                            );
+                            sleep(Duration::from_secs(DOCKER_RETRY_WAIT_SECONDS)).await;
+
+                            // Step 3: Reinitialize aggregator and subblock clients
+                            info!("proving-client: reinitializing aggregator and subblock clients");
+                            agg_client = self.init_agg_proving_client(&token).await;
+                            subblock_clients = self.init_subblock_proving_clients(&token).await;
+
+                            // Step 4: Resend the last proving inputs to retry the failed block
+                            if let Some(ref inputs) = last_proving_inputs {
+                                info!(
+                                    "proving-client: resending proving inputs for block {}",
+                                    block_number
+                                );
+                                send_proving_inputs(
+                                    inputs.clone(),
+                                    &mut agg_client,
+                                    &mut subblock_clients,
+                                )
+                                .await;
+                                info!(
+                                    "proving-client: proving inputs resent, continuing to wait for proof"
+                                );
+                            } else {
+                                error!("proving-client: no proving inputs saved for retry");
+                                panic!("proving-client: cannot retry without proving inputs");
+                            }
                         }
                     }
                     _ => {
@@ -136,31 +228,102 @@ impl ProvingClient {
     }
 
     // initialize a aggregator proving client
-    pub async fn init_agg_proving_client(&self) -> AggregatorClient<Channel> {
+    pub async fn init_agg_proving_client(
+        &self,
+        cancellation_token: &CancellationToken,
+    ) -> AggregatorClient<Channel> {
         let max_msg_bytes = self.config.max_msg_bytes;
         let agg_url = self.config.agg_url.clone();
-        AggregatorClient::connect(agg_url.to_string())
-            .await
-            .expect("proving-client: failed to connect to aggregator proving {agg_url}")
-            .max_encoding_message_size(max_msg_bytes)
-            .max_decoding_message_size(max_msg_bytes)
-            .accept_compressed(CompressionEncoding::Zstd)
-            .send_compressed(CompressionEncoding::Zstd)
+
+        loop {
+            // Check for cancellation first
+            if cancellation_token.is_cancelled() {
+                info!(
+                    "proving-client: cancellation requested, stopping aggregator client initialization"
+                );
+                panic!("proving-client: cancelled during aggregator client initialization");
+            }
+
+            // Try to connect
+            match AggregatorClient::connect(agg_url.to_string()).await {
+                Ok(client) => {
+                    info!("proving-client: successfully connected to aggregator at {agg_url}");
+                    return client
+                        .max_encoding_message_size(max_msg_bytes)
+                        .max_decoding_message_size(max_msg_bytes)
+                        .accept_compressed(CompressionEncoding::Zstd)
+                        .send_compressed(CompressionEncoding::Zstd);
+                }
+                Err(e) => {
+                    warn!("proving-client: failed to connect to aggregator at {agg_url}: {e}");
+                    warn!(
+                        "proving-client: retrying in {}s",
+                        CLIENT_RETRY_INTERVAL_SECONDS
+                    );
+                }
+            }
+
+            // Wait with cancellation support
+            select! {
+                _ = cancellation_token.cancelled() => {
+                    info!("proving-client: cancellation requested, stopping aggregator client initialization");
+                    panic!("proving-client: cancelled during aggregator client initialization");
+                }
+                _ = sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)) => {
+                    // Continue to next iteration
+                }
+            }
+        }
     }
 
     // initialize subblock proving clients
-    pub async fn init_subblock_proving_clients(&self) -> Vec<SubblockClient<Channel>> {
+    pub async fn init_subblock_proving_clients(
+        &self,
+        cancellation_token: &CancellationToken,
+    ) -> Vec<SubblockClient<Channel>> {
         let max_msg_bytes = self.config.max_msg_bytes;
         let subblock_urls = &self.config.subblock_urls;
         let mut subblock_clients = Vec::with_capacity(subblock_urls.len());
         for url in subblock_urls {
-            let client = SubblockClient::connect(url.to_string())
-                .await
-                .expect("proving-client: failed to connect to subblock proving {url}")
-                .max_encoding_message_size(max_msg_bytes)
-                .max_decoding_message_size(max_msg_bytes)
-                .accept_compressed(CompressionEncoding::Zstd)
-                .send_compressed(CompressionEncoding::Zstd);
+            let client = loop {
+                // Check for cancellation first
+                if cancellation_token.is_cancelled() {
+                    info!(
+                        "proving-client: cancellation requested, stopping subblock client initialization"
+                    );
+                    panic!("proving-client: cancelled during subblock client initialization");
+                }
+
+                // Try to connect
+                match SubblockClient::connect(url.to_string()).await {
+                    Ok(client) => {
+                        info!("proving-client: successfully connected to subblock at {url}");
+                        break client
+                            .max_encoding_message_size(max_msg_bytes)
+                            .max_decoding_message_size(max_msg_bytes)
+                            .accept_compressed(CompressionEncoding::Zstd)
+                            .send_compressed(CompressionEncoding::Zstd);
+                    }
+                    Err(e) => {
+                        warn!("proving-client: failed to connect to subblock at {url}: {e}");
+                        warn!(
+                            "proving-client: retrying in {}s",
+                            CLIENT_RETRY_INTERVAL_SECONDS
+                        );
+                    }
+                }
+
+                // Wait with cancellation support
+                select! {
+                    _ = cancellation_token.cancelled() => {
+                        info!("proving-client: cancellation requested, stopping subblock client initialization");
+                        panic!("proving-client: cancelled during subblock client initialization");
+                    }
+                    _ = sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)) => {
+                        // Continue to next iteration
+                    }
+                }
+            };
 
             subblock_clients.push(client);
         }
