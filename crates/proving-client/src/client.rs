@@ -21,6 +21,9 @@ const MAX_PROVING_WAITING_SECONDS: u64 = 120;
 // wait time after docker retry before reinitializing clients (in seconds)
 const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
 
+// retry interval for client connection attempts (in seconds)
+const CLIENT_RETRY_INTERVAL_SECONDS: u64 = 2;
+
 #[derive(Constructor, Debug)]
 pub struct ProvingClient {
     // proving client configuration
@@ -214,13 +217,27 @@ impl ProvingClient {
     pub async fn init_agg_proving_client(&self) -> AggregatorClient<Channel> {
         let max_msg_bytes = self.config.max_msg_bytes;
         let agg_url = self.config.agg_url.clone();
-        AggregatorClient::connect(agg_url.to_string())
-            .await
-            .expect("proving-client: failed to connect to aggregator proving {agg_url}")
-            .max_encoding_message_size(max_msg_bytes)
-            .max_decoding_message_size(max_msg_bytes)
-            .accept_compressed(CompressionEncoding::Zstd)
-            .send_compressed(CompressionEncoding::Zstd)
+
+        loop {
+            match AggregatorClient::connect(agg_url.to_string()).await {
+                Ok(client) => {
+                    info!("proving-client: successfully connected to aggregator at {agg_url}");
+                    return client
+                        .max_encoding_message_size(max_msg_bytes)
+                        .max_decoding_message_size(max_msg_bytes)
+                        .accept_compressed(CompressionEncoding::Zstd)
+                        .send_compressed(CompressionEncoding::Zstd);
+                }
+                Err(e) => {
+                    warn!("proving-client: failed to connect to aggregator at {agg_url}: {e}");
+                    warn!(
+                        "proving-client: retrying in {}s",
+                        CLIENT_RETRY_INTERVAL_SECONDS
+                    );
+                    sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)).await;
+                }
+            }
+        }
     }
 
     // initialize subblock proving clients
@@ -229,13 +246,26 @@ impl ProvingClient {
         let subblock_urls = &self.config.subblock_urls;
         let mut subblock_clients = Vec::with_capacity(subblock_urls.len());
         for url in subblock_urls {
-            let client = SubblockClient::connect(url.to_string())
-                .await
-                .expect("proving-client: failed to connect to subblock proving {url}")
-                .max_encoding_message_size(max_msg_bytes)
-                .max_decoding_message_size(max_msg_bytes)
-                .accept_compressed(CompressionEncoding::Zstd)
-                .send_compressed(CompressionEncoding::Zstd);
+            let client = loop {
+                match SubblockClient::connect(url.to_string()).await {
+                    Ok(client) => {
+                        info!("proving-client: successfully connected to subblock at {url}");
+                        break client
+                            .max_encoding_message_size(max_msg_bytes)
+                            .max_decoding_message_size(max_msg_bytes)
+                            .accept_compressed(CompressionEncoding::Zstd)
+                            .send_compressed(CompressionEncoding::Zstd);
+                    }
+                    Err(e) => {
+                        warn!("proving-client: failed to connect to subblock at {url}: {e}");
+                        warn!(
+                            "proving-client: retrying in {}s",
+                            CLIENT_RETRY_INTERVAL_SECONDS
+                        );
+                        sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)).await;
+                    }
+                }
+            };
 
             subblock_clients.push(client);
         }
