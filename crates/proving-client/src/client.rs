@@ -25,6 +25,12 @@ const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
 // retry interval for client connection attempts (in seconds)
 const CLIENT_RETRY_INTERVAL_SECONDS: u64 = 2;
 
+// maximum number of retries for sending proving requests
+const MAX_PROVING_REQUEST_RETRIES: u32 = 50;
+
+// retry interval for proving request attempts (in seconds)
+const PROVING_REQUEST_RETRY_INTERVAL_SECONDS: u64 = 10;
+
 #[derive(Constructor, Debug)]
 pub struct ProvingClient {
     // proving client configuration
@@ -355,10 +361,38 @@ async fn send_proving_inputs(
         subblock_public_values: proving_inputs.subblock_public_values,
         input: proving_inputs.agg_input,
     };
-    agg_client
-        .prove_aggregation(req)
-        .await
-        .expect("proving-client: failed to request with the aggregator input");
+
+    // Retry logic for aggregator request
+    let mut retry_count = 0;
+    loop {
+        match agg_client.prove_aggregation(req.clone()).await {
+            Ok(_) => {
+                if retry_count > 0 {
+                    info!(
+                        "proving-client: aggregator request succeeded after {retry_count} retries"
+                    );
+                }
+                break;
+            }
+            Err(e) => {
+                retry_count += 1;
+                if retry_count > MAX_PROVING_REQUEST_RETRIES {
+                    error!(
+                        "proving-client: failed to request with the aggregator input after {MAX_PROVING_REQUEST_RETRIES} retries: {e}"
+                    );
+                    panic!("proving-client: failed to request with the aggregator input: {e}");
+                }
+                warn!(
+                    "proving-client: aggregator request failed (attempt {retry_count}/{MAX_PROVING_REQUEST_RETRIES}): {e}"
+                );
+                warn!(
+                    "proving-client: retrying in {}s",
+                    PROVING_REQUEST_RETRY_INTERVAL_SECONDS
+                );
+                sleep(Duration::from_secs(PROVING_REQUEST_RETRY_INTERVAL_SECONDS)).await;
+            }
+        }
+    }
 
     // TRICKY: aggregator service needs the all subblock services ready, even if the subblock
     // inputs are insufficient
@@ -380,9 +414,37 @@ async fn send_proving_inputs(
             subblock_index: i as u32,
             input,
         };
-        client
-            .prove_subblock(req)
-            .await
-            .expect("proving-client: failed to request with the subblock input");
+
+        // Retry logic for subblock request
+        let mut retry_count = 0;
+        loop {
+            match client.prove_subblock(req.clone()).await {
+                Ok(_) => {
+                    if retry_count > 0 {
+                        info!(
+                            "proving-client: subblock {i} request succeeded after {retry_count} retries"
+                        );
+                    }
+                    break;
+                }
+                Err(e) => {
+                    retry_count += 1;
+                    if retry_count > MAX_PROVING_REQUEST_RETRIES {
+                        error!(
+                            "proving-client: failed to request with the subblock {i} input after {MAX_PROVING_REQUEST_RETRIES} retries: {e}"
+                        );
+                        panic!("proving-client: failed to request with the subblock input: {e}");
+                    }
+                    warn!(
+                        "proving-client: subblock {i} request failed (attempt {retry_count}/{MAX_PROVING_REQUEST_RETRIES}): {e}"
+                    );
+                    warn!(
+                        "proving-client: retrying in {}s",
+                        PROVING_REQUEST_RETRY_INTERVAL_SECONDS
+                    );
+                    sleep(Duration::from_secs(PROVING_REQUEST_RETRY_INTERVAL_SECONDS)).await;
+                }
+            }
+        }
     }
 }
