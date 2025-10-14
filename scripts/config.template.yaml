@@ -1,0 +1,175 @@
+# =============================================================================
+# Brevis VM Multi-Machine Docker Configuration Template
+# =============================================================================
+# This template defines all configurable values for the multi-machine setup.
+# Run './setup.sh generate-config' to create your config.yaml from this template.
+# =============================================================================
+
+# =============================================================================
+# AGGREGATOR CONFIGURATION
+# =============================================================================
+aggregator:
+  # Main aggregator machine that coordinates workers
+  host: "192.168.1.10"                    # IP address or hostname - CHANGE THIS
+  user: "ubuntu"                          # SSH username  
+  remote_dir: "/home/ubuntu/brevis"       # Working directory on aggregator
+  
+  # Network settings
+  orchestrator_listen_addr: "0.0.0.0:50052"      # Orchestrator service bind address
+  final_aggregator_listen_addr: "0.0.0.0:50051"  # Final aggregator service bind address
+
+# =============================================================================
+# WORKER CONFIGURATION
+# =============================================================================
+workers:
+  # List of worker machines
+  # Each worker needs: host, user, worker_id, index, remote_dir
+  # CHANGE ALL THE HOST IPs AND WORKER IDs BELOW TO MATCH YOUR SETUP
+  
+  - host: "192.168.1.11"            # CHANGE THIS to your worker 1 IP
+    user: "ubuntu"
+    worker_id: "worker1"             # CHANGE THIS to your worker name
+    index: 0
+    remote_dir: "/home/ubuntu/brevis"
+    
+  - host: "192.168.1.12"            # CHANGE THIS to your worker 2 IP
+    user: "ubuntu" 
+    worker_id: "worker2"             # CHANGE THIS to your worker name
+    index: 1
+    remote_dir: "/home/ubuntu/brevis"
+    
+  - host: "192.168.1.13"            # CHANGE THIS to your worker 3 IP
+    user: "ubuntu"
+    worker_id: "worker3"             # CHANGE THIS to your worker name
+    index: 2
+    remote_dir: "/home/ubuntu/brevis"
+    
+  - host: "192.168.1.14"            # CHANGE THIS to your worker 4 IP
+    user: "ubuntu"
+    worker_id: "worker4"             # CHANGE THIS to your worker name
+    index: 3
+    remote_dir: "/home/ubuntu/brevis"
+    
+  - host: "192.168.1.15"            # CHANGE THIS to your worker 5 IP
+    user: "ubuntu"
+    worker_id: "worker5"             # CHANGE THIS to your worker name
+    index: 4
+    remote_dir: "/home/ubuntu/brevis"
+    
+  - host: "192.168.1.16"            # CHANGE THIS to your worker 6 IP
+    user: "ubuntu"
+    worker_id: "worker6"             # CHANGE THIS to your worker name
+    index: 5
+    remote_dir: "/home/ubuntu/brevis"
+    
+  - host: "192.168.1.17"            # CHANGE THIS to your worker 7 IP
+    user: "ubuntu"
+    worker_id: "worker7"             # CHANGE THIS to your worker name
+    index: 6
+    remote_dir: "/home/ubuntu/brevis"
+
+# =============================================================================
+# PATH CONFIGURATION  
+# =============================================================================
+paths:
+  # Data directory path on all remote machines (must be identical across machines)
+  # CHANGE THIS to your perf/bench_data directory path
+  perf_data_dir: "/path/to/your/project/perf/bench_data"
+  
+  # Program cache file path on all remote machines (must be identical)  
+  # CHANGE THIS to your program cache file path
+  program_cache_file: "/path/to/your/project/program_cache.bin"
+  
+  # Mount points inside containers (usually don't need to change)
+  container_data_mount: "/app/perf/bench_data"
+  container_cache_mount: "/app/program_cache.bin"
+  
+  # Directory for saving logs (relative to remote directories)
+  logs_dir: "docker-logs"
+
+# =============================================================================
+# DOCKER CONFIGURATION
+# =============================================================================
+docker:
+  # Docker command prefix - use "sudo docker" if user needs sudo, "docker" if in docker group
+  prefix: "sudo docker"
+  
+  # Docker images (usually don't need to change)
+  images:
+    aggregator: "pico-aggregator:latest"
+    worker: "pico-subblock-worker:latest"
+    
+  # Container names (fixed, don't change)
+  containers:
+    aggregator: "pico-aggregator"
+    worker: "pico-subblock-worker"
+    
+  # Environment files
+  env_files:
+    aggregator: ".env.aggregator" 
+    worker: ".env.subblock"
+
+# =============================================================================
+# NUMA CONFIGURATION
+# =============================================================================
+numa:
+  # NUMA node settings for CPU and memory binding
+  # Adjust based on your hardware configuration
+  cpuset_cpus: "62-123"           # CPU cores to use (e.g., "0-31" or "62-123")
+  cpuset_mems: "1"                # NUMA memory node (e.g., "0" or "1")
+
+# =============================================================================
+# SSH CONFIGURATION
+# =============================================================================
+ssh:
+  # Connection settings
+  connect_timeout: 30             # SSH connection timeout in seconds
+  control_persist: "10m"          # SSH connection multiplexing persist time
+  control_dir: "${HOME}/.ssh/control"  # SSH control socket directory
+  
+  # Retry settings for unreliable connections  
+  max_retries: 3                  # Max SSH retry attempts (only for connection failures)
+  retry_delay: 2                  # Delay between retries in seconds
+  
+  # Rate limiting protection
+  worker_operation_delay: 0.1     # Delay between worker operations in seconds
+
+# =============================================================================
+# CONTAINER MANAGEMENT SETTINGS
+# =============================================================================
+container_management:
+  # Container stop retry settings (for handling zombie processes)
+  stop_max_retries: 5             # Max retries for stopping containers
+  stop_retry_delay: 3             # Delay between stop retries in seconds
+  
+  # Startup timing
+  aggregator_startup_wait: 5      # Wait time for aggregator before starting workers 
+  restart_wait_time: 3            # Wait time between stop and start during restart
+
+# =============================================================================
+# PERFORMANCE TUNING
+# =============================================================================
+performance:
+  # Chunk sizes for retry mechanism
+  chunk_size_normal: 4194304      # Normal chunk size (2^22)
+  chunk_size_retry: 2097152       # Retry chunk size (2^21)  
+  
+  # Logging configuration
+  timestamp_format: "%Y%m%d-%H%M%S"   # Log file timestamp format
+  log_date_format: "%Y-%m-%d %H:%M:%S"  # Log message date format
+
+# =============================================================================
+# EXPERIMENT CONFIGURATION
+# =============================================================================  
+experiment:
+  # Run ID for tracking experiments
+  run_id: "ethproof-run"          # Experiment identifier
+  
+  # Performance tuning (used for .env generation)
+  split_threshold: 32768
+  chunk_size: 4194304
+  retry_chunk_size: 2097152
+  prover_count: 8
+  num_threads: 8
+  num_riscv_preparers: 4
+  cpu_event_pool_size: 200

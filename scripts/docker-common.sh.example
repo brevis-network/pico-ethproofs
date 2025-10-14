@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Docker Multi-Machine Common Configuration - EXAMPLE
+# =============================================================================
+# Copy this file to docker-common.sh and edit the values for your environment
+# 
+# INSTRUCTIONS:
+#   1. Copy: cp docker-common.sh.example docker-common.sh
+#   2. Edit docker-common.sh with your machine IPs and settings
+#   3. Do NOT modify the CONSTANTS section (container names, image names)
+#   4. Modify only the CONFIGURATION section below
+# =============================================================================
+
+set -euo pipefail
+
+# =============================================================================
+# CONSTANTS - Do not modify these (modify via environment variables instead)
+# =============================================================================
+
+# Container names (keep these fixed for Docker operations)
+readonly CONTAINER_NAME_AGGREGATOR="pico-aggregator"
+readonly CONTAINER_NAME_WORKER="pico-subblock-worker"
+
+# Docker image names
+readonly IMAGE_NAME_AGGREGATOR="pico-aggregator:latest"
+readonly IMAGE_NAME_WORKER="pico-subblock-worker:latest"
+
+# Environment file names
+readonly ENV_FILE_AGGREGATOR=".env.aggregator"
+readonly ENV_FILE_WORKER=".env.subblock"
+
+# Chunk sizes for retry mechanism
+readonly CHUNK_SIZE_NORMAL=$((1 << 22))  # 4194304
+readonly CHUNK_SIZE_RETRY=$((1 << 21))   # 2097152
+
+# =============================================================================
+# CONFIGURATION - Edit these values for your environment
+# =============================================================================
+
+# --- Aggregator Configuration ---
+# The main aggregator machine that coordinates workers
+AGG_HOST="${AGG_HOST:-192.168.1.10}"        # Aggregator IP address - CHANGE THIS
+AGG_USER="${AGG_USER:-ubuntu}"              # SSH username
+AGG_REMOTE_DIR="${AGG_REMOTE_DIR:-/home/ubuntu/brevis}"  # Working directory on aggregator
+
+# --- Worker Configuration ---
+# Format: "HOST USER WORKER_ID INDEX REMOTE_DIR"
+# - HOST: IP address of worker machine
+# - USER: SSH username for worker
+# - WORKER_ID: Unique identifier (e.g., worker1, worker2)
+# - INDEX: Worker index (0, 1, 2, ...)
+# - REMOTE_DIR: Working directory on worker machine
+#
+# Add or remove workers as needed for your setup - CHANGE ALL IPs AND NAMES
+WORKERS=(
+    "192.168.1.11 ubuntu worker1 0 /home/ubuntu/brevis"
+    "192.168.1.12 ubuntu worker2 1 /home/ubuntu/brevis"
+    "192.168.1.13 ubuntu worker3 2 /home/ubuntu/brevis"
+    "192.168.1.14 ubuntu worker4 3 /home/ubuntu/brevis"
+    "192.168.1.15 ubuntu worker5 4 /home/ubuntu/brevis"
+    "192.168.1.16 ubuntu worker6 5 /home/ubuntu/brevis"
+    "192.168.1.17 ubuntu worker7 6 /home/ubuntu/brevis"
+)
+
+# --- Path Configuration ---
+# Data directory on remote machines (perf/bench_data)
+# This should be the same path on all machines - CHANGE THIS
+PERF_DATA_DIR="${PERF_DATA_DIR:-/path/to/your/project/perf/bench_data}"
+
+# Program cache file on remote machines
+# This should be the same path on all machines - CHANGE THIS
+PROGRAM_CACHE_FILE="${PROGRAM_CACHE_FILE:-/path/to/your/project/program_cache.bin}"
+
+# Mount point inside containers (usually don't need to change)
+CONTAINER_DATA_MOUNT="${CONTAINER_DATA_MOUNT:-/app/perf/bench_data}"
+CONTAINER_CACHE_MOUNT="${CONTAINER_CACHE_MOUNT:-/app/program_cache.bin}"
+
+# Log directory (relative to remote directories)
+LOGS_DIR="${LOGS_DIR:-docker-logs}"
+
+# --- Docker Configuration ---
+# Docker command prefix
+# Use "sudo docker" if your user needs sudo for Docker commands
+# Use "docker" if your user is in the docker group
+DOCKER_PREFIX="${DOCKER_PREFIX:-sudo docker}"
+
+# --- NUMA Configuration ---
+# NUMA node settings (cpuset-cpus and cpuset-mems)
+# Adjust these based on your hardware configuration
+# Example: NUMA node 1 with CPUs 62-123
+CPUSET_CPUS="${CPUSET_CPUS:-62-123}"
+CPUSET_MEMS="${CPUSET_MEMS:-1}"
+
+# --- SSH Configuration ---
+# SSH connection timeout (seconds)
+SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-30}"
+
+# SSH connection multiplexing (reuse connections for better performance and reliability)
+SSH_CONTROL_DIR="${SSH_CONTROL_DIR:-${HOME}/.ssh/control}"
+SSH_CONTROL_PERSIST="${SSH_CONTROL_PERSIST:-10m}"
+
+# SSH options (customize for your network environment)
+# Default: connection timeout + keep-alive settings + connection multiplexing
+SSH_OPTIONS="${SSH_OPTIONS:--o ConnectTimeout=${SSH_CONNECT_TIMEOUT} -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -o ControlMaster=auto -o ControlPath=${SSH_CONTROL_DIR}/%r@%h:%p -o ControlPersist=${SSH_CONTROL_PERSIST}}"
+
+# SSH retry settings (for handling unreliable connections)
+# Only retries on real SSH connection failures (exit code 255)
+SSH_MAX_RETRIES="${SSH_MAX_RETRIES:-3}"
+SSH_RETRY_DELAY="${SSH_RETRY_DELAY:-2}"
+
+# Worker operation delay (seconds between SSH connections to prevent rate limiting)
+# With connection multiplexing, this can be much lower (0.1s instead of 0.5s)
+WORKER_OPERATION_DELAY="${WORKER_OPERATION_DELAY:-0.1}"
+
+# --- Container Management Settings ---
+# Container stop retry settings
+# Increase these if you frequently encounter zombie processes
+STOP_MAX_RETRIES="${STOP_MAX_RETRIES:-5}"
+STOP_RETRY_DELAY="${STOP_RETRY_DELAY:-3}"
+
+# Wait time for aggregator to start before starting workers (seconds)
+AGG_STARTUP_WAIT="${AGG_STARTUP_WAIT:-5}"
+
+# Wait time between stop and start during restart (seconds)
+RESTART_WAIT_TIME="${RESTART_WAIT_TIME:-3}"
+
+# --- Logging Configuration ---
+TIMESTAMP_FORMAT="${TIMESTAMP_FORMAT:-%Y%m%d-%H%M%S}"
+LOG_DATE_FORMAT="${LOG_DATE_FORMAT:-%Y-%m-%d %H:%M:%S}"
+
+# =============================================================================
+# UTILITY FUNCTIONS (Do not modify below this line)
+# =============================================================================
+# All utility functions are defined in the actual docker-common.sh
+# This example file only shows the configuration section
+
