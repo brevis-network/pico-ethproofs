@@ -11,7 +11,8 @@
 aggregator:
   # Main aggregator machine that coordinates workers
   host: "192.168.1.10"                    # IP address or hostname - CHANGE THIS
-  user: "ubuntu"                          # SSH username  
+  user: "ubuntu"                          # SSH username
+  port: 22                                # SSH port (default: 22)
   remote_dir: "/home/ubuntu/brevis"       # Working directory on aggregator
   
   # Network settings
@@ -23,47 +24,54 @@ aggregator:
 # =============================================================================
 workers:
   # List of worker machines
-  # Each worker needs: host, user, worker_id, index, remote_dir
-  # CHANGE ALL THE HOST IPs AND WORKER IDs BELOW TO MATCH YOUR SETUP
+  # Each worker needs: host, user, port, worker_id, index, remote_dir
+  # CHANGE ALL THE HOST IPs, PORTS, AND WORKER IDs BELOW TO MATCH YOUR SETUP
   
   - host: "192.168.1.11"            # CHANGE THIS to your worker 1 IP
     user: "ubuntu"
+    port: 22                         # SSH port (default: 22)
     worker_id: "worker1"             # CHANGE THIS to your worker name
     index: 0
     remote_dir: "/home/ubuntu/brevis"
     
   - host: "192.168.1.12"            # CHANGE THIS to your worker 2 IP
     user: "ubuntu" 
+    port: 22                         # SSH port (default: 22)
     worker_id: "worker2"             # CHANGE THIS to your worker name
     index: 1
     remote_dir: "/home/ubuntu/brevis"
     
   - host: "192.168.1.13"            # CHANGE THIS to your worker 3 IP
     user: "ubuntu"
+    port: 22                         # SSH port (default: 22)
     worker_id: "worker3"             # CHANGE THIS to your worker name
     index: 2
     remote_dir: "/home/ubuntu/brevis"
     
   - host: "192.168.1.14"            # CHANGE THIS to your worker 4 IP
     user: "ubuntu"
+    port: 22                         # SSH port (default: 22)
     worker_id: "worker4"             # CHANGE THIS to your worker name
     index: 3
     remote_dir: "/home/ubuntu/brevis"
     
   - host: "192.168.1.15"            # CHANGE THIS to your worker 5 IP
     user: "ubuntu"
+    port: 22                         # SSH port (default: 22)
     worker_id: "worker5"             # CHANGE THIS to your worker name
     index: 4
     remote_dir: "/home/ubuntu/brevis"
     
   - host: "192.168.1.16"            # CHANGE THIS to your worker 6 IP
     user: "ubuntu"
+    port: 22                         # SSH port (default: 22)
     worker_id: "worker6"             # CHANGE THIS to your worker name
     index: 5
     remote_dir: "/home/ubuntu/brevis"
     
   - host: "192.168.1.17"            # CHANGE THIS to your worker 7 IP
     user: "ubuntu"
+    port: 22                         # SSH port (default: 22)
     worker_id: "worker7"             # CHANGE THIS to your worker name
     index: 6
     remote_dir: "/home/ubuntu/brevis"

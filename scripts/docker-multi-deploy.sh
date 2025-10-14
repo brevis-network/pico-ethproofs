@@ -98,15 +98,16 @@ cleanup_remote_docker() {
     local user="$2"
     local container_name="$3"
     local image_name="$4"
+    local port="${5:-22}"
     
     log "Cleaning up old containers and images on ${user}@${host}..."
     
     # Stop and remove container if exists
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX stop $container_name 2>/dev/null || true"
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX rm $container_name 2>/dev/null || true"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX stop $container_name 2>/dev/null || true"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX rm $container_name 2>/dev/null || true"
     
     # Remove old image if exists
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX rmi $image_name 2>/dev/null || true"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX rmi $image_name 2>/dev/null || true"
     
     log "Cleanup complete on ${user}@${host}"
 }
@@ -120,6 +121,7 @@ deploy_image_to_machine() {
     local container_name="$5"
     local image_name="$6"
     local machine_type="$7"  # "aggregator" or "worker"
+    local port="${8:-22}"
     
     log "=== Deploying $machine_type image to ${user}@${host} ==="
     
@@ -129,7 +131,7 @@ deploy_image_to_machine() {
     
     # Step 1: Copy image to remote machine
     log "Step 1/3: Copying image to ${user}@${host}..."
-    if ! scp_copy "$local_image" "$user" "$host" "$remote_image"; then
+    if ! scp_copy "$local_image" "$user" "$host" "$remote_image" "$port"; then
         error "Failed to copy image to ${user}@${host}"
         return 1
     fi
@@ -137,19 +139,19 @@ deploy_image_to_machine() {
     
     # Step 2: Clean up old containers and images
     log "Step 2/3: Cleaning up old containers and images..."
-    cleanup_remote_docker "$host" "$user" "$container_name" "$image_name"
+    cleanup_remote_docker "$host" "$user" "$container_name" "$image_name" "$port"
     
     # Step 3: Load new image
     log "Step 3/3: Loading new image..."
     local load_cmd=$(get_load_command "$remote_image")
-    if ! ssh_exec "$user" "$host" "cd '$remote_dir' && $load_cmd"; then
+    if ! ssh_exec "$user" "$host" "$port" "cd '$remote_dir' && $load_cmd"; then
         error "Failed to load image on ${user}@${host}"
         return 1
     fi
     log "Image loaded successfully"
     
     # Verify image is loaded
-    if ! ssh_exec "$user" "$host" "$DOCKER_PREFIX images | grep -q '${image_name%:*}'"; then
+    if ! ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX images | grep -q '${image_name%:*}'"; then
         error "Image verification failed on ${user}@${host}"
         return 1
     fi
@@ -180,7 +182,8 @@ deploy_aggregator() {
         "$AGG_REMOTE_DIR" \
         "$CONTAINER_NAME_AGGREGATOR" \
         "$IMAGE_NAME_AGGREGATOR" \
-        "aggregator"; then
+        "aggregator" \
+        "$AGG_PORT"; then
         error "Aggregator deployment failed"
         return 1
     fi
@@ -213,7 +216,7 @@ deploy_workers() {
     
     # Deploy to each worker
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
         
         log ""
         log "Deploying to worker $wid..."
@@ -225,7 +228,8 @@ deploy_workers() {
             "$remote_dir" \
             "$CONTAINER_NAME_WORKER" \
             "$IMAGE_NAME_WORKER" \
-            "worker $wid"; then
+            "worker $wid" \
+            "$port"; then
             error "Worker $wid deployment failed"
             failed_workers+=("$wid")
         else
@@ -233,7 +237,7 @@ deploy_workers() {
             if [[ "$keep_tar" != "true" ]]; then
                 local image_filename=$(basename "$worker_image")
                 log "Removing tar file from worker $wid..."
-                ssh_exec "$user" "$host" "rm -f '${remote_dir}/${image_filename}'" || true
+                ssh_exec "$user" "$host" "$port" "rm -f '${remote_dir}/${image_filename}'" || true
             fi
         fi
         
@@ -262,7 +266,7 @@ verify_deployment() {
     # Verify aggregator
     if [[ "$mode" == "all" ]] || [[ "$mode" == "agg" ]]; then
         log "Verifying aggregator image..."
-        if ssh_exec "$AGG_USER" "$AGG_HOST" "$DOCKER_PREFIX images | grep -q '${IMAGE_NAME_AGGREGATOR%:*}'"; then
+        if ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "$DOCKER_PREFIX images | grep -q '${IMAGE_NAME_AGGREGATOR%:*}'"; then
             log "✓ Aggregator image verified: $IMAGE_NAME_AGGREGATOR"
         else
             error "✗ Aggregator image not found!"
@@ -273,9 +277,9 @@ verify_deployment() {
     # Verify workers
     if [[ "$mode" == "all" ]] || [[ "$mode" == "workers" ]]; then
         for worker_spec in "${WORKERS[@]}"; do
-            read -r host user wid idx remote_dir <<< "$worker_spec"
+            read -r host user port wid idx remote_dir <<< "$worker_spec"
             log "Verifying worker $wid image..."
-            if ssh_exec "$user" "$host" "$DOCKER_PREFIX images | grep -q '${IMAGE_NAME_WORKER%:*}'"; then
+            if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX images | grep -q '${IMAGE_NAME_WORKER%:*}'"; then
                 log "✓ Worker $wid image verified: $IMAGE_NAME_WORKER"
             else
                 error "✗ Worker $wid image not found!"

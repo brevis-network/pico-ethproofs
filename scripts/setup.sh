@@ -164,6 +164,7 @@ parse_config() {
     eval "$(yq eval '
         "export AGG_HOST=" + .aggregator.host,
         "export AGG_USER=" + .aggregator.user,
+        "export AGG_PORT=" + (.aggregator.port | tostring),
         "export AGG_REMOTE_DIR=" + .aggregator.remote_dir,
         "export PERF_DATA_DIR=" + .paths.perf_data_dir,
         "export PROGRAM_CACHE_FILE=" + .paths.program_cache_file,
@@ -178,7 +179,7 @@ parse_config() {
 # Extract worker info from config
 get_workers() {
     local config_file="${1:-$CONFIG_FILE}"
-    yq eval '.workers[] | .host + " " + .user + " " + .worker_id + " " + (.index | tostring) + " " + .remote_dir' "$config_file"
+    yq eval '.workers[] | .host + " " + .user + " " + (.port | tostring) + " " + .worker_id + " " + (.index | tostring) + " " + .remote_dir' "$config_file"
 }
 
 # Validate configuration file
@@ -267,20 +268,26 @@ validate_config() {
 # Check SSH connectivity to a host
 check_ssh_host() {
     local host="$1"
-    local user="$2" 
-    local verbose="${3:-false}"
+    local user="$2"
+    local port="${3:-22}"
+    local verbose="${4:-false}"
     
     if [[ "$verbose" == "true" ]]; then
-        log "Checking SSH connectivity to ${user}@${host}..."
+        log "Checking SSH connectivity to ${user}@${host}:${port}..."
     fi
     
-    if ssh -o ConnectTimeout=10 -o BatchMode=yes "${user}@${host}" "echo 'SSH OK'" > /dev/null 2>&1; then
+    local ssh_opts="-o ConnectTimeout=10 -o BatchMode=yes"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
+    fi
+    
+    if ssh $ssh_opts "${user}@${host}" "echo 'SSH OK'" > /dev/null 2>&1; then
         if [[ "$verbose" == "true" ]]; then
-            success "SSH connectivity OK: ${user}@${host}"
+            success "SSH connectivity OK: ${user}@${host}:${port}"
         fi
         return 0
     else
-        error "SSH connectivity failed: ${user}@${host}"
+        error "SSH connectivity failed: ${user}@${host}:${port}"
         return 1
     fi
 }
@@ -299,14 +306,14 @@ check_ssh_connectivity() {
     local failures=0
     
     # Check aggregator
-    if ! check_ssh_host "$AGG_HOST" "$AGG_USER" "$verbose"; then
+    if ! check_ssh_host "$AGG_HOST" "$AGG_USER" "$AGG_PORT" "$verbose"; then
         ((failures++))
     fi
     
     # Check workers
     while IFS= read -r worker_spec; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        if ! check_ssh_host "$host" "$user" "$verbose"; then
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        if ! check_ssh_host "$host" "$user" "$port" "$verbose"; then
             ((failures++))
         fi
     done <<< "$(get_workers "$config_file")"
@@ -332,24 +339,30 @@ check_docker_host() {
     local host="$1"
     local user="$2"
     local docker_prefix="$3"
-    local verbose="${4:-false}"
+    local port="${4:-22}"
+    local verbose="${5:-false}"
     
     if [[ "$verbose" == "true" ]]; then
-        log "Checking Docker on ${user}@${host}..."
+        log "Checking Docker on ${user}@${host}:${port}..."
+    fi
+    
+    local ssh_opts="-o ConnectTimeout=10"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
     fi
     
     # Check if Docker is installed and running
     local docker_status
-    if docker_status=$(ssh -o ConnectTimeout=10 "${user}@${host}" "$docker_prefix version --format '{{.Server.Version}}'" 2>/dev/null); then
+    if docker_status=$(ssh $ssh_opts "${user}@${host}" "$docker_prefix version --format '{{.Server.Version}}'" 2>/dev/null); then
         if [[ "$verbose" == "true" ]]; then
-            success "Docker OK on ${user}@${host} (version: $docker_status)"
+            success "Docker OK on ${user}@${host}:${port} (version: $docker_status)"
         fi
         return 0
     else
-        error "Docker check failed on ${user}@${host}"
+        error "Docker check failed on ${user}@${host}:${port}"
         if [[ "$verbose" == "true" ]]; then
             # Try to get more detailed error info
-            ssh -o ConnectTimeout=10 "${user}@${host}" "$docker_prefix version" 2>&1 | head -5 | sed 's/^/  /'
+            ssh $ssh_opts "${user}@${host}" "$docker_prefix version" 2>&1 | head -5 | sed 's/^/  /'
         fi
         return 1
     fi
@@ -372,14 +385,14 @@ check_docker_installation() {
     local failures=0
     
     # Check aggregator
-    if ! check_docker_host "$AGG_HOST" "$AGG_USER" "$docker_prefix" "$verbose"; then
+    if ! check_docker_host "$AGG_HOST" "$AGG_USER" "$docker_prefix" "$AGG_PORT" "$verbose"; then
         ((failures++))
     fi
     
     # Check workers
     while IFS= read -r worker_spec; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        if ! check_docker_host "$host" "$user" "$docker_prefix" "$verbose"; then
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        if ! check_docker_host "$host" "$user" "$docker_prefix" "$port" "$verbose"; then
             ((failures++))
         fi
     done <<< "$(get_workers "$config_file")"
@@ -403,24 +416,30 @@ check_docker_installation() {
 check_gpu_host() {
     local host="$1"
     local user="$2"
-    local verbose="${3:-false}"
+    local port="${3:-22}"
+    local verbose="${4:-false}"
     
     if [[ "$verbose" == "true" ]]; then
-        log "Checking GPU on ${user}@${host}..."
+        log "Checking GPU on ${user}@${host}:${port}..."
+    fi
+    
+    local ssh_opts="-o ConnectTimeout=10"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
     fi
     
     # Check if nvidia-smi is available and GPUs are detected
     local gpu_info
-    if gpu_info=$(ssh -o ConnectTimeout=10 "${user}@${host}" "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits" 2>/dev/null); then
+    if gpu_info=$(ssh $ssh_opts "${user}@${host}" "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits" 2>/dev/null); then
         local gpu_count
         gpu_count=$(echo "$gpu_info" | wc -l)
         if [[ "$verbose" == "true" ]]; then
-            success "GPU OK on ${user}@${host} ($gpu_count GPU(s))"
+            success "GPU OK on ${user}@${host}:${port} ($gpu_count GPU(s))"
             echo "$gpu_info" | sed 's/^/    /'
         fi
         return 0
     else
-        error "GPU check failed on ${user}@${host}"
+        error "GPU check failed on ${user}@${host}:${port}"
         return 1
     fi
 }
@@ -439,14 +458,14 @@ check_gpu_availability() {
     local failures=0
     
     # Check aggregator
-    if ! check_gpu_host "$AGG_HOST" "$AGG_USER" "$verbose"; then
+    if ! check_gpu_host "$AGG_HOST" "$AGG_USER" "$AGG_PORT" "$verbose"; then
         ((failures++))
     fi
     
     # Check workers  
     while IFS= read -r worker_spec; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        if ! check_gpu_host "$host" "$user" "$verbose"; then
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        if ! check_gpu_host "$host" "$user" "$port" "$verbose"; then
             ((failures++))
         fi
     done <<< "$(get_workers "$config_file")"
@@ -472,34 +491,40 @@ check_paths_host() {
     local remote_dir="$3" 
     local perf_data_dir="$4"
     local program_cache="$5"
-    local verbose="${6:-false}"
+    local port="${6:-22}"
+    local verbose="${7:-false}"
     
     if [[ "$verbose" == "true" ]]; then
-        log "Checking paths on ${user}@${host}..."
+        log "Checking paths on ${user}@${host}:${port}..."
+    fi
+    
+    local ssh_opts="-o ConnectTimeout=10"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
     fi
     
     local failures=0
     
     # Check remote directory
-    if ! ssh -o ConnectTimeout=10 "${user}@${host}" "test -d '$remote_dir'" 2>/dev/null; then
-        error "Remote directory not found on ${user}@${host}: $remote_dir"
+    if ! ssh $ssh_opts "${user}@${host}" "test -d '$remote_dir'" 2>/dev/null; then
+        error "Remote directory not found on ${user}@${host}:${port}: $remote_dir"
         ((failures++))
     fi
     
     # Check perf data directory  
-    if ! ssh -o ConnectTimeout=10 "${user}@${host}" "test -d '$perf_data_dir'" 2>/dev/null; then
-        error "Perf data directory not found on ${user}@${host}: $perf_data_dir"
+    if ! ssh $ssh_opts "${user}@${host}" "test -d '$perf_data_dir'" 2>/dev/null; then
+        error "Perf data directory not found on ${user}@${host}:${port}: $perf_data_dir"
         ((failures++))
     fi
     
     # Check program cache file (optional)
-    if ! ssh -o ConnectTimeout=10 "${user}@${host}" "test -f '$program_cache'" 2>/dev/null; then
-        warning "Program cache file not found on ${user}@${host}: $program_cache (will be created)"
+    if ! ssh $ssh_opts "${user}@${host}" "test -f '$program_cache'" 2>/dev/null; then
+        warning "Program cache file not found on ${user}@${host}:${port}: $program_cache (will be created)"
     fi
     
     if [[ $failures -eq 0 ]]; then
         if [[ "$verbose" == "true" ]]; then
-            success "Required paths OK on ${user}@${host}"
+            success "Required paths OK on ${user}@${host}:${port}"
         fi
         return 0
     else
@@ -525,14 +550,14 @@ check_required_paths() {
     local failures=0
     
     # Check aggregator
-    if ! check_paths_host "$AGG_HOST" "$AGG_USER" "$AGG_REMOTE_DIR" "$perf_data_dir" "$program_cache" "$verbose"; then
+    if ! check_paths_host "$AGG_HOST" "$AGG_USER" "$AGG_REMOTE_DIR" "$perf_data_dir" "$program_cache" "$AGG_PORT" "$verbose"; then
         ((failures++))
     fi
     
     # Check workers
     while IFS= read -r worker_spec; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        if ! check_paths_host "$host" "$user" "$remote_dir" "$perf_data_dir" "$program_cache" "$verbose"; then
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        if ! check_paths_host "$host" "$user" "$remote_dir" "$perf_data_dir" "$program_cache" "$port" "$verbose"; then
             ((failures++))
         fi
     done <<< "$(get_workers "$config_file")"
@@ -777,43 +802,53 @@ distribute_env_files() {
     
     # Distribute aggregator .env file
     if [[ "$dry_run" == "true" ]]; then
-        log "Would copy $agg_env to ${AGG_USER}@${AGG_HOST}:${AGG_REMOTE_DIR}/"
+        log "Would copy $agg_env to ${AGG_USER}@${AGG_HOST}:${AGG_PORT}:${AGG_REMOTE_DIR}/"
     else
         if [[ "$verbose" == "true" ]]; then
-            log "Copying aggregator .env to ${AGG_USER}@${AGG_HOST}..."
+            log "Copying aggregator .env to ${AGG_USER}@${AGG_HOST}:${AGG_PORT}..."
         fi
         
-        if scp -o ConnectTimeout=10 "$agg_env" "${AGG_USER}@${AGG_HOST}:${AGG_REMOTE_DIR}/" 2>/dev/null; then
+        local scp_opts="-o ConnectTimeout=10"
+        if [[ "$AGG_PORT" != "22" ]]; then
+            scp_opts="$scp_opts -P $AGG_PORT"
+        fi
+        
+        if scp $scp_opts "$agg_env" "${AGG_USER}@${AGG_HOST}:${AGG_REMOTE_DIR}/" 2>/dev/null; then
             if [[ "$verbose" == "true" ]]; then
-                success "Aggregator .env copied to ${AGG_USER}@${AGG_HOST}"
+                success "Aggregator .env copied to ${AGG_USER}@${AGG_HOST}:${AGG_PORT}"
             fi
         else
-            error "Failed to copy aggregator .env to ${AGG_USER}@${AGG_HOST}"
+            error "Failed to copy aggregator .env to ${AGG_USER}@${AGG_HOST}:${AGG_PORT}"
             ((failures++))
         fi
     fi
     
     # Distribute worker .env files (customized per worker)
     while IFS= read -r worker_spec; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
         
         # Create customized worker .env file
         local custom_worker_env="/tmp/.env.subblock.${wid}"
         sed "s/WORKER_ID_PLACEHOLDER/${wid}/g; s/DEFERRED_INDEX_PLACEHOLDER/${idx}/g" "$worker_env" > "$custom_worker_env"
         
         if [[ "$dry_run" == "true" ]]; then
-            log "Would copy customized .env.subblock to ${user}@${host}:${remote_dir}/"
+            log "Would copy customized .env.subblock to ${user}@${host}:${port}:${remote_dir}/"
         else
             if [[ "$verbose" == "true" ]]; then
-                log "Copying worker .env to ${user}@${host} (worker: $wid, index: $idx)..."
+                log "Copying worker .env to ${user}@${host}:${port} (worker: $wid, index: $idx)..."
             fi
             
-            if scp -o ConnectTimeout=10 "$custom_worker_env" "${user}@${host}:${remote_dir}/.env.subblock" 2>/dev/null; then
+            local scp_opts="-o ConnectTimeout=10"
+            if [[ "$port" != "22" ]]; then
+                scp_opts="$scp_opts -P $port"
+            fi
+            
+            if scp $scp_opts "$custom_worker_env" "${user}@${host}:${remote_dir}/.env.subblock" 2>/dev/null; then
                 if [[ "$verbose" == "true" ]]; then
-                    success "Worker .env copied to ${user}@${host}"
+                    success "Worker .env copied to ${user}@${host}:${port}"
                 fi
             else
-                error "Failed to copy worker .env to ${user}@${host}"
+                error "Failed to copy worker .env to ${user}@${host}:${port}"
                 ((failures++))
             fi
         fi
@@ -967,21 +1002,29 @@ setup_ssh_keys() {
     echo ""
     
     # Copy to aggregator
-    info "Setting up SSH for aggregator: ${AGG_USER}@${AGG_HOST}"
-    if ssh-copy-id -o ConnectTimeout=30 "${AGG_USER}@${AGG_HOST}"; then
-        success "SSH key copied to ${AGG_USER}@${AGG_HOST}"
+    info "Setting up SSH for aggregator: ${AGG_USER}@${AGG_HOST}:${AGG_PORT}"
+    local ssh_copy_opts="-o ConnectTimeout=30"
+    if [[ "$AGG_PORT" != "22" ]]; then
+        ssh_copy_opts="$ssh_copy_opts -p $AGG_PORT"
+    fi
+    if ssh-copy-id $ssh_copy_opts "${AGG_USER}@${AGG_HOST}"; then
+        success "SSH key copied to ${AGG_USER}@${AGG_HOST}:${AGG_PORT}"
     else
-        warning "Failed to copy SSH key to ${AGG_USER}@${AGG_HOST}"
+        warning "Failed to copy SSH key to ${AGG_USER}@${AGG_HOST}:${AGG_PORT}"
     fi
     
     # Copy to workers
     while IFS= read -r worker_spec; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        info "Setting up SSH for worker $wid: ${user}@${host}"
-        if ssh-copy-id -o ConnectTimeout=30 "${user}@${host}"; then
-            success "SSH key copied to ${user}@${host}"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        info "Setting up SSH for worker $wid: ${user}@${host}:${port}"
+        local worker_ssh_copy_opts="-o ConnectTimeout=30"
+        if [[ "$port" != "22" ]]; then
+            worker_ssh_copy_opts="$worker_ssh_copy_opts -p $port"
+        fi
+        if ssh-copy-id $worker_ssh_copy_opts "${user}@${host}"; then
+            success "SSH key copied to ${user}@${host}:${port}"
         else
-            warning "Failed to copy SSH key to ${user}@${host}"
+            warning "Failed to copy SSH key to ${user}@${host}:${port}"
         fi
     done <<< "$(get_workers "$CONFIG_FILE")"
     

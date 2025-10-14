@@ -81,18 +81,32 @@ init_ssh_control() {
 establish_ssh_connection() {
     local user="$1"
     local host="$2"
+    local port="${3:-22}"
+    
+    # Build SSH options with port
+    local ssh_opts="$SSH_OPTIONS"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
+    fi
     
     # Send a simple command to establish the connection
     # The ControlMaster=auto will create the control socket
-    ssh $SSH_OPTIONS "${user}@${host}" "true" 2>/dev/null || true
+    ssh $ssh_opts "${user}@${host}" "true" 2>/dev/null || true
 }
 
 # Close multiplexed SSH connection to a host
 close_ssh_connection() {
     local user="$1"
     local host="$2"
+    local port="${3:-22}"
     
-    ssh $SSH_OPTIONS -O exit "${user}@${host}" 2>/dev/null || true
+    # Build SSH options with port
+    local ssh_opts="$SSH_OPTIONS"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
+    fi
+    
+    ssh $ssh_opts -O exit "${user}@${host}" 2>/dev/null || true
 }
 
 # Execute SSH command with configured options and retry logic
@@ -100,15 +114,22 @@ close_ssh_connection() {
 ssh_exec() {
     local user="$1"
     local host="$2"
-    shift 2
+    local port="${3:-22}"
+    shift 3
     
     local retry=0
     local max_retries="$SSH_MAX_RETRIES"
     
+    # Build SSH options with port
+    local ssh_opts="$SSH_OPTIONS"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
+    fi
+    
     while [[ $retry -lt $max_retries ]]; do
         # Use bash -c to properly handle pipes and redirections
         # Allow stderr to pass through (it may be normal output from docker commands)
-        ssh $SSH_OPTIONS "${user}@${host}" "bash -c $(printf '%q' "$*")"
+        ssh $ssh_opts "${user}@${host}" "bash -c $(printf '%q' "$*")"
         local exit_code=$?
         
         # Only retry on SSH connection failure (exit code 255)
@@ -136,8 +157,16 @@ ssh_exec() {
 ssh_exec_no_retry() {
     local user="$1"
     local host="$2"
-    shift 2
-    ssh $SSH_OPTIONS "${user}@${host}" "bash -c $(printf '%q' "$*")" 2>&1
+    local port="${3:-22}"
+    shift 3
+    
+    # Build SSH options with port
+    local ssh_opts="$SSH_OPTIONS"
+    if [[ "$port" != "22" ]]; then
+        ssh_opts="$ssh_opts -p $port"
+    fi
+    
+    ssh $ssh_opts "${user}@${host}" "bash -c $(printf '%q' "$*")" 2>&1
 }
 
 # Copy file via SCP with configured options and retry logic
@@ -146,12 +175,19 @@ scp_copy() {
     local user="$2"
     local host="$3"
     local dest="$4"
+    local port="${5:-22}"
     
     local retry=0
     local max_retries="$SSH_MAX_RETRIES"
     
+    # Build SCP options with port (SCP uses -P, not -p)
+    local scp_opts="$SSH_OPTIONS"
+    if [[ "$port" != "22" ]]; then
+        scp_opts="$scp_opts -P $port"
+    fi
+    
     while [[ $retry -lt $max_retries ]]; do
-        if scp $SSH_OPTIONS "$src" "${user}@${host}:${dest}" 2>&1; then
+        if scp $scp_opts "$src" "${user}@${host}:${dest}" 2>&1; then
             return 0
         else
             local exit_code=$?
@@ -182,11 +218,11 @@ get_worker() {
     return 1
 }
 
-# Parse worker spec: "HOST USER WORKER_ID INDEX REMOTE_DIR"
+# Parse worker spec: "HOST USER PORT WORKER_ID INDEX REMOTE_DIR"
 parse_worker_spec() {
     local spec="$1"
-    read -r host user wid idx remote_dir <<< "$spec"
-    echo "$host" "$user" "$wid" "$idx" "$remote_dir"
+    read -r host user port wid idx remote_dir <<< "$spec"
+    echo "$host" "$user" "$port" "$wid" "$idx" "$remote_dir"
 }
 
 # Build expected workers and indices CSV lists for aggregator configuration
@@ -195,7 +231,7 @@ build_worker_lists() {
     local indices=()
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
         worker_ids+=("$wid")
         indices+=("$idx")
     done
@@ -252,8 +288,9 @@ container_exists() {
     local host="$1"
     local user="$2"
     local container_name="$3"
+    local port="${4:-22}"
     
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX ps -a --format '{{.Names}}' | grep -q '^${container_name}$' 2>/dev/null"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX ps -a --format '{{.Names}}' | grep -q '^${container_name}$' 2>/dev/null"
 }
 
 # Check if container is running
@@ -261,8 +298,9 @@ is_container_running() {
     local host="$1"
     local user="$2"
     local container_name="$3"
+    local port="${4:-22}"
     
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX ps --format '{{.Names}}' | grep -q '^${container_name}$' 2>/dev/null"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX ps --format '{{.Names}}' | grep -q '^${container_name}$' 2>/dev/null"
 }
 
 # Stop a Docker container with retry logic to handle zombie processes
@@ -270,15 +308,16 @@ stop_container_with_retry() {
     local host="$1"
     local user="$2"
     local container_name="$3"
-    local max_retries="${4:-$STOP_MAX_RETRIES}"
-    local retry_delay="${5:-$STOP_RETRY_DELAY}"
+    local port="${4:-22}"
+    local max_retries="${5:-$STOP_MAX_RETRIES}"
+    local retry_delay="${6:-$STOP_RETRY_DELAY}"
     
     log "Stopping container $container_name on ${user}@${host}..."
     
     local retry=0
     while [[ $retry -lt $max_retries ]]; do
         # Try to stop the container
-        if ssh_exec "$user" "$host" "$DOCKER_PREFIX stop $container_name 2>&1" | grep -q "zombie"; then
+        if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX stop $container_name 2>&1" | grep -q "zombie"; then
             retry=$((retry + 1))
             if [[ $retry -lt $max_retries ]]; then
                 warn "Container $container_name is zombie, retrying ($retry/$max_retries)..."
@@ -287,7 +326,7 @@ stop_container_with_retry() {
                 error "Failed to stop $container_name after $max_retries attempts (zombie process)"
                 # Try force kill as last resort
                 log "Attempting force kill on $container_name..."
-                ssh_exec "$user" "$host" "$DOCKER_PREFIX kill $container_name 2>/dev/null || true"
+                ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX kill $container_name 2>/dev/null || true"
                 sleep 2
                 return 1
             fi
@@ -307,25 +346,26 @@ save_container_logs() {
     local user="$2"
     local container_name="$3"
     local log_file="$4"
+    local port="${5:-22}"
     
     log "Saving logs from $container_name on ${user}@${host} to $log_file..."
     
     # Create logs directory if it doesn't exist
-    ssh_exec "$user" "$host" "mkdir -p \$(dirname '$log_file')"
+    ssh_exec "$user" "$host" "$port" "mkdir -p \$(dirname '$log_file')"
     
     # Check if container exists first
-    if ! container_exists "$host" "$user" "$container_name"; then
+    if ! container_exists "$host" "$user" "$container_name" "$port"; then
         log "Container $container_name does not exist on ${user}@${host}, skipping log save"
         return 0
     fi
     
     # Save logs
-    if ssh_exec "$user" "$host" "$DOCKER_PREFIX logs $container_name &> '$log_file' 2>&1"; then
+    if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX logs $container_name &> '$log_file' 2>&1"; then
         log "Logs saved to $log_file"
         return 0
     else
         # Check if the error is because container doesn't exist (race condition)
-        if ! container_exists "$host" "$user" "$container_name"; then
+        if ! container_exists "$host" "$user" "$container_name" "$port"; then
             log "Container $container_name was removed during log save, skipping"
             return 0
         else
@@ -340,11 +380,12 @@ stop_and_remove_container() {
     local host="$1"
     local user="$2"
     local container_name="$3"
+    local port="${4:-22}"
     
-    stop_container_with_retry "$host" "$user" "$container_name"
+    stop_container_with_retry "$host" "$user" "$container_name" "$port"
     
     log "Removing container $container_name on ${user}@${host}..."
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX rm $container_name 2>/dev/null || true"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX rm $container_name 2>/dev/null || true"
 }
 
 # Force remove a container (running or stopped)
@@ -352,9 +393,10 @@ force_remove_container() {
     local host="$1"
     local user="$2"
     local container_name="$3"
+    local port="${4:-22}"
     
     log "Force removing container $container_name on ${user}@${host}..."
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX rm -f $container_name 2>/dev/null || true"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX rm -f $container_name 2>/dev/null || true"
 }
 
 # Check if container is completely gone (doesn't exist at all)
@@ -362,9 +404,10 @@ is_container_gone() {
     local host="$1"
     local user="$2"
     local container_name="$3"
+    local port="${4:-22}"
     
     # Returns 0 if container is gone, 1 if it still exists
-    if ssh_exec "$user" "$host" "$DOCKER_PREFIX ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^${container_name}$'"; then
+    if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^${container_name}$'"; then
         return 1  # Container still exists
     else
         return 0  # Container is gone
@@ -376,27 +419,28 @@ force_kill_container() {
     local host="$1"
     local user="$2"
     local container_name="$3"
-    local max_retries="${4:-3}"
-    local retry_delay="${5:-2}"
+    local port="${4:-22}"
+    local max_retries="${5:-3}"
+    local retry_delay="${6:-2}"
     
     log "Force killing container $container_name on ${user}@${host}..."
     
     local retry=0
     while [[ $retry -lt $max_retries ]]; do
         # Kill the container immediately
-        ssh_exec "$user" "$host" "$DOCKER_PREFIX kill $container_name 2>/dev/null || true"
+        ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX kill $container_name 2>/dev/null || true"
         
         # Wait a moment for kill to take effect
         sleep 1
         
         # Force remove
-        ssh_exec "$user" "$host" "$DOCKER_PREFIX rm -f $container_name 2>/dev/null || true"
+        ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX rm -f $container_name 2>/dev/null || true"
         
         # Wait a moment for removal to complete
         sleep 1
         
         # Verify container is gone
-        if is_container_gone "$host" "$user" "$container_name"; then
+        if is_container_gone "$host" "$user" "$container_name" "$port"; then
             log "Container $container_name successfully removed"
             return 0
         else
@@ -419,17 +463,18 @@ force_kill_all_containers() {
     local host="$1"
     local user="$2"
     local pattern="$3"
+    local port="${4:-22}"
     
     log "Force killing all containers matching '$pattern' on ${user}@${host}..."
     
     # Kill all matching containers
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX ps -a --filter name=$pattern -q | xargs -r $DOCKER_PREFIX kill 2>/dev/null || true"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX ps -a --filter name=$pattern -q | xargs -r $DOCKER_PREFIX kill 2>/dev/null || true"
     
     # Wait a moment
     sleep 1
     
     # Force remove all matching containers
-    ssh_exec "$user" "$host" "$DOCKER_PREFIX ps -a --filter name=$pattern -q | xargs -r $DOCKER_PREFIX rm -f 2>/dev/null || true"
+    ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX ps -a --filter name=$pattern -q | xargs -r $DOCKER_PREFIX rm -f 2>/dev/null || true"
 }
 
 # --- Docker Run Command Builder ---
@@ -464,10 +509,10 @@ stop_aggregator() {
     if [[ "$save_logs" == "true" ]]; then
         local timestamp=$(date +"$TIMESTAMP_FORMAT")
         local log_file="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-${timestamp}.log"
-        save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$log_file" || true
+        save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$log_file" "$AGG_PORT" || true
     fi
     
-    stop_and_remove_container "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR"
+    stop_and_remove_container "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$AGG_PORT"
 }
 
 # Start aggregator container
@@ -478,7 +523,7 @@ start_aggregator() {
     
     local docker_opts=$(build_docker_run_opts "$CONTAINER_NAME_AGGREGATOR" "$env_file")
     
-    ssh_exec "$AGG_USER" "$AGG_HOST" "cd '$AGG_REMOTE_DIR' && \
+    ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "cd '$AGG_REMOTE_DIR' && \
         $DOCKER_PREFIX run $docker_opts $IMAGE_NAME_AGGREGATOR"
     
     log "Aggregator started successfully"
@@ -515,7 +560,7 @@ get_aggregator_status() {
     
     # Step 1: Get running containers
     local running_containers
-    running_containers=$(ssh_exec "$AGG_USER" "$AGG_HOST" "sudo docker ps --format '{{.Names}}'")
+    running_containers=$(ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "sudo docker ps --format '{{.Names}}'")
     
     if [[ $? -ne 0 ]]; then
         error "Failed to connect to aggregator at ${AGG_USER}@${AGG_HOST}"
@@ -528,13 +573,13 @@ get_aggregator_status() {
     # Step 2: Check if container is running (locally)
     if echo "$running_containers" | grep -q '^pico-aggregator$'; then
         echo "  Status: RUNNING"
-        ssh_exec "$AGG_USER" "$AGG_HOST" "sudo docker ps | grep pico-aggregator"
+        ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "sudo docker ps | grep pico-aggregator"
         return 0
     fi
     
     # Step 3: Check if container exists but stopped
     local all_containers
-    all_containers=$(ssh_exec "$AGG_USER" "$AGG_HOST" "sudo docker ps -a --format '{{.Names}}'")
+    all_containers=$(ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "sudo docker ps -a --format '{{.Names}}'")
     
     if [[ $? -ne 0 ]]; then
         error "Failed to connect to aggregator at ${AGG_USER}@${AGG_HOST}"
@@ -544,7 +589,7 @@ get_aggregator_status() {
     
     if echo "$all_containers" | grep -q '^pico-aggregator$'; then
         echo "  Status: STOPPED (container exists but not running)"
-        ssh_exec "$AGG_USER" "$AGG_HOST" "sudo docker ps -a | grep pico-aggregator"
+        ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "sudo docker ps -a | grep pico-aggregator"
         return 0
     fi
     
@@ -556,13 +601,13 @@ get_aggregator_status() {
 # Cleanup aggregator container
 cleanup_aggregator() {
     log "Cleaning up aggregator container on ${AGG_USER}@${AGG_HOST}..."
-    force_kill_container "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR"
+    force_kill_container "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$AGG_PORT"
 }
 
 # Force kill aggregator container (immediate termination)
 force_kill_aggregator() {
     log "Force killing aggregator container on ${AGG_USER}@${AGG_HOST}..."
-    force_kill_container "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR"
+    force_kill_container "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$AGG_PORT"
     return $?
 }
 
@@ -574,32 +619,34 @@ force_kill_aggregator() {
 stop_worker() {
     local host="$1"
     local user="$2"
-    local wid="$3"
-    local save_logs="${4:-false}"
-    local remote_dir="$5"
+    local port="$3"
+    local wid="$4"
+    local save_logs="${5:-false}"
+    local remote_dir="$6"
     
     if [[ "$save_logs" == "true" ]]; then
         local timestamp=$(date +"$TIMESTAMP_FORMAT")
         local log_file="${remote_dir}/${LOGS_DIR}/subblock-${wid}-${timestamp}.log"
-        save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$log_file" || true
+        save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$log_file" "$port" || true
     fi
     
-    stop_and_remove_container "$host" "$user" "$CONTAINER_NAME_WORKER"
+    stop_and_remove_container "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"
 }
 
 # Start a single worker container
 start_worker() {
     local host="$1"
     local user="$2"
-    local wid="$3"
-    local remote_dir="$4"
-    local env_file="${5:-$ENV_FILE_WORKER}"
+    local port="$3"
+    local wid="$4"
+    local remote_dir="$5"
+    local env_file="${6:-$ENV_FILE_WORKER}"
     
     log "Starting worker $wid on ${user}@${host}..."
     
     local docker_opts=$(build_docker_run_opts "$CONTAINER_NAME_WORKER" "$env_file")
     
-    ssh_exec "$user" "$host" "cd '$remote_dir' && \
+    ssh_exec "$user" "$host" "$port" "cd '$remote_dir' && \
         $DOCKER_PREFIX run $docker_opts $IMAGE_NAME_WORKER"
     
     log "Worker $wid started successfully"
@@ -609,10 +656,11 @@ start_worker() {
 cleanup_worker() {
     local host="$1"
     local user="$2"
-    local wid="$3"
+    local port="$3"
+    local wid="$4"
     
     log "Cleaning up worker $wid on ${user}@${host}..."
-    force_kill_container "$host" "$user" "$CONTAINER_NAME_WORKER"
+    force_kill_container "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"
 }
 
 # Stop all worker containers
@@ -622,8 +670,8 @@ stop_all_workers() {
     log "Stopping all ${#WORKERS[@]} workers..."
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        stop_worker "$host" "$user" "$wid" "$save_logs" "$remote_dir"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        stop_worker "$host" "$user" "$port" "$wid" "$save_logs" "$remote_dir"
         apply_worker_delay
     done
     
@@ -635,8 +683,8 @@ start_all_workers() {
     log "Starting all ${#WORKERS[@]} workers..."
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        start_worker "$host" "$user" "$wid" "$remote_dir"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        start_worker "$host" "$user" "$port" "$wid" "$remote_dir"
         apply_worker_delay
     done
     
@@ -665,12 +713,12 @@ start_all_workers() {
 # Get status of all worker containers
 get_all_worker_status() {
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
         log "Worker $wid status on ${user}@${host}:"
         
         # Step 1: Get running containers
         local running_containers
-        running_containers=$(ssh_exec "$user" "$host" "sudo docker ps --format '{{.Names}}'")
+        running_containers=$(ssh_exec "$user" "$host" "$port" "sudo docker ps --format '{{.Names}}'")
         
         if [[ $? -ne 0 ]]; then
             error "Failed to connect to worker $wid at ${user}@${host}"
@@ -683,13 +731,13 @@ get_all_worker_status() {
         # Step 2: Check if container is running (locally)
         if echo "$running_containers" | grep -q '^pico-subblock-worker$'; then
             echo "  Status: RUNNING"
-            ssh_exec "$user" "$host" "sudo docker ps | grep pico-subblock-worker"
+            ssh_exec "$user" "$host" "$port" "sudo docker ps | grep pico-subblock-worker"
             continue
         fi
         
         # Step 3: Check if container exists but stopped
         local all_containers
-        all_containers=$(ssh_exec "$user" "$host" "sudo docker ps -a --format '{{.Names}}'")
+        all_containers=$(ssh_exec "$user" "$host" "$port" "sudo docker ps -a --format '{{.Names}}'")
         
         if [[ $? -ne 0 ]]; then
             error "Failed to connect to worker $wid at ${user}@${host}"
@@ -699,7 +747,7 @@ get_all_worker_status() {
         
         if echo "$all_containers" | grep -q '^pico-subblock-worker$'; then
             echo "  Status: STOPPED (container exists but not running)"
-            ssh_exec "$user" "$host" "sudo docker ps -a | grep pico-subblock-worker"
+            ssh_exec "$user" "$host" "$port" "sudo docker ps -a | grep pico-subblock-worker"
             continue
         fi
         
@@ -712,8 +760,8 @@ cleanup_all_workers() {
     log "Cleaning up all ${#WORKERS[@]} workers..."
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        cleanup_worker "$host" "$user" "$wid"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        cleanup_worker "$host" "$user" "$port" "$wid"
         apply_worker_delay
     done
     
@@ -724,10 +772,11 @@ cleanup_all_workers() {
 force_kill_worker() {
     local host="$1"
     local user="$2"
-    local wid="$3"
+    local port="$3"
+    local wid="$4"
     
     log "Force killing worker $wid on ${user}@${host}..."
-    force_kill_container "$host" "$user" "$CONTAINER_NAME_WORKER"
+    force_kill_container "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"
     return $?
 }
 
@@ -737,8 +786,8 @@ force_kill_all_workers() {
     
     local failures=0
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        if ! force_kill_worker "$host" "$user" "$wid"; then
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        if ! force_kill_worker "$host" "$user" "$port" "$wid"; then
             ((failures++))
         fi
         apply_worker_delay
@@ -812,15 +861,15 @@ verify_all_containers_gone() {
     local failures=0
     
     # Check aggregator
-    if ! is_container_gone "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR"; then
+    if ! is_container_gone "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$AGG_PORT"; then
         error "Aggregator container still exists on ${AGG_USER}@${AGG_HOST}"
         ((failures++))
     fi
     
     # Check workers
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        if ! is_container_gone "$host" "$user" "$CONTAINER_NAME_WORKER"; then
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        if ! is_container_gone "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"; then
             error "Worker $wid container still exists on ${user}@${host}"
             ((failures++))
         fi
@@ -867,12 +916,12 @@ init_all_ssh_connections() {
     init_ssh_control
     
     # Establish connection to aggregator (in background)
-    establish_ssh_connection "$AGG_USER" "$AGG_HOST" &
+    establish_ssh_connection "$AGG_USER" "$AGG_HOST" "$AGG_PORT" &
     
     # Establish connections to all workers (in background)
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        establish_ssh_connection "$user" "$host" &
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        establish_ssh_connection "$user" "$host" "$port" &
     done
     
     # Wait for all background connections to complete
@@ -882,12 +931,12 @@ init_all_ssh_connections() {
 # Close all SSH connections
 close_all_ssh_connections() {
     # Close aggregator connection
-    close_ssh_connection "$AGG_USER" "$AGG_HOST"
+    close_ssh_connection "$AGG_USER" "$AGG_HOST" "$AGG_PORT"
     
     # Close worker connections
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
-        close_ssh_connection "$user" "$host"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        close_ssh_connection "$user" "$host" "$port"
     done
 }
 

@@ -16,6 +16,7 @@ load_yaml_config() {
         eval "$(yq eval '
             "export AGG_HOST=\"" + .aggregator.host + "\"",
             "export AGG_USER=\"" + .aggregator.user + "\"",
+            "export AGG_PORT=\"" + (.aggregator.port | tostring) + "\"",
             "export AGG_REMOTE_DIR=\"" + .aggregator.remote_dir + "\"",
             "export PERF_DATA_DIR=\"" + .paths.perf_data_dir + "\"",
             "export PROGRAM_CACHE_FILE=\"" + .paths.program_cache_file + "\"",
@@ -42,7 +43,7 @@ load_yaml_config() {
         if command -v yq &> /dev/null 2>&1; then
             # Create workers array from YAML  
             local workers_data
-            workers_data=$(yq eval '.workers[] | .host + " " + .user + " " + .worker_id + " " + (.index | tostring) + " " + .remote_dir' "$config_file" 2>/dev/null)
+            workers_data=$(yq eval '.workers[] | .host + " " + .user + " " + (.port | tostring) + " " + .worker_id + " " + (.index | tostring) + " " + .remote_dir' "$config_file" 2>/dev/null)
             
             if [[ -n "$workers_data" ]]; then
                 # Convert to array
@@ -73,18 +74,19 @@ init_config() {
     # --- Aggregator Configuration ---
     AGG_HOST="${AGG_HOST:-192.168.1.10}"
     AGG_USER="${AGG_USER:-ubuntu}"
+    AGG_PORT="${AGG_PORT:-22}"
     AGG_REMOTE_DIR="${AGG_REMOTE_DIR:-/home/ubuntu/brevis}"
 
     # --- Worker Configuration ---
     if [[ ${#WORKERS[@]} -eq 0 ]]; then
         WORKERS=(
-            "192.168.1.11 ubuntu worker1 0 /home/ubuntu/brevis"
-            "192.168.1.12 ubuntu worker2 1 /home/ubuntu/brevis"
-            "192.168.1.13 ubuntu worker3 2 /home/ubuntu/brevis"
-            "192.168.1.14 ubuntu worker4 3 /home/ubuntu/brevis"
-            "192.168.1.15 ubuntu worker5 4 /home/ubuntu/brevis"
-            "192.168.1.16 ubuntu worker6 5 /home/ubuntu/brevis"
-            "192.168.1.17 ubuntu worker7 6 /home/ubuntu/brevis"
+            "192.168.1.11 ubuntu 22 worker1 0 /home/ubuntu/brevis"
+            "192.168.1.12 ubuntu 22 worker2 1 /home/ubuntu/brevis"
+            "192.168.1.13 ubuntu 22 worker3 2 /home/ubuntu/brevis"
+            "192.168.1.14 ubuntu 22 worker4 3 /home/ubuntu/brevis"
+            "192.168.1.15 ubuntu 22 worker5 4 /home/ubuntu/brevis"
+            "192.168.1.16 ubuntu 22 worker6 5 /home/ubuntu/brevis"
+            "192.168.1.17 ubuntu 22 worker7 6 /home/ubuntu/brevis"
         )
     fi
 

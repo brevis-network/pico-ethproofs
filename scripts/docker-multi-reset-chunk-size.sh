@@ -49,11 +49,12 @@ reset_env_chunk_size() {
     local user="$2"
     local env_file="$3"
     local chunk_size="$4"
+    local port="${5:-22}"
     
     log "Resetting $env_file on ${user}@${host} to CHUNK_SIZE=$chunk_size..."
     
     # Add or update CHUNK_SIZE if it doesn't exist
-    ssh_exec "$user" "$host" "
+    ssh_exec "$user" "$host" "$port" "
         cd \$(dirname '$env_file')
         if grep -q '^CHUNK_SIZE=' '$env_file' 2>/dev/null; then
             sed -i 's/^CHUNK_SIZE=.*/CHUNK_SIZE=$chunk_size/' '$env_file'
@@ -72,13 +73,13 @@ reset_all_env_files() {
     
     # Update aggregator env
     local agg_env="${AGG_REMOTE_DIR}/${ENV_FILE_AGGREGATOR}"
-    reset_env_chunk_size "$AGG_HOST" "$AGG_USER" "$agg_env" "$chunk_size"
+    reset_env_chunk_size "$AGG_HOST" "$AGG_USER" "$agg_env" "$chunk_size" "$AGG_PORT"
     
     # Update worker envs
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
         local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
-        reset_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size"
+        reset_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
     done
     
     log "All .env files reset"
