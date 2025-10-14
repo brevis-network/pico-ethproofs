@@ -26,10 +26,10 @@ const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
 const CLIENT_RETRY_INTERVAL_SECONDS: u64 = 2;
 
 // maximum number of retries for sending proving requests
-const MAX_PROVING_REQUEST_RETRIES: u32 = 5;
+const MAX_PROVING_REQUEST_RETRIES: u32 = 50;
 
 // retry interval for proving request attempts (in seconds)
-const PROVING_REQUEST_RETRY_INTERVAL_SECONDS: u64 = 5;
+const PROVING_REQUEST_RETRY_INTERVAL_SECONDS: u64 = 10;
 
 #[derive(Constructor, Debug)]
 pub struct ProvingClient {
