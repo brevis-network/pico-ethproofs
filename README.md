@@ -158,4 +158,10 @@ As of **October 2025**, this repository **has not undergone a security audit**. 
 
 ## License
 
+This project is licensed under **either** of:
 
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
+- MIT License ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
+
+You may choose **either license** when using, modifying, or redistributing the project.  
+Dual licensing allows maximum flexibility for your project usage.
