@@ -71,7 +71,7 @@ impl FetchService {
             match msg {
                 Message::Ping(_) => {
                     info!(
-                        "fetch-service: received a websocket Ping meesage and returning a Poing message",
+                        "fetch-service: received a websocket Ping meesage and returning a Pong message",
                     );
                     let _ = msg_sender.send(Message::Pong(Bytes::new()));
                 }
