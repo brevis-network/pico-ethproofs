@@ -8,10 +8,11 @@ use std::{collections::VecDeque, sync::Arc};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{
     process::Command,
-    spawn,
+    select, spawn,
     task::JoinHandle,
     time::{Duration, sleep, timeout},
 };
+use tokio_util::sync::CancellationToken;
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{error, info, warn};
 
@@ -37,10 +38,23 @@ impl ProvingClient {
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
         info!("proving-client: start");
 
+        let cancellation_token = CancellationToken::new();
+        let token = cancellation_token.clone();
+
+        // Set up signal handling for graceful shutdown
+        let shutdown_token = token.clone();
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to listen for ctrl+c");
+            info!("proving-client: received ctrl+c, initiating graceful shutdown");
+            shutdown_token.cancel();
+        });
+
         spawn(async move {
             info!("proving-client: initialize aggregator and subblock proving clients");
-            let mut agg_client = self.init_agg_proving_client().await;
-            let mut subblock_clients = self.init_subblock_proving_clients().await;
+            let mut agg_client = self.init_agg_proving_client(&token).await;
+            let mut subblock_clients = self.init_subblock_proving_clients(&token).await;
 
             info!("proving-client: waiting for proving and proved messages");
             // variable for saving the block number proving in progress
@@ -179,8 +193,8 @@ impl ProvingClient {
 
                             // Step 3: Reinitialize aggregator and subblock clients
                             info!("proving-client: reinitializing aggregator and subblock clients");
-                            agg_client = self.init_agg_proving_client().await;
-                            subblock_clients = self.init_subblock_proving_clients().await;
+                            agg_client = self.init_agg_proving_client(&token).await;
+                            subblock_clients = self.init_subblock_proving_clients(&token).await;
 
                             // Step 4: Resend the last proving inputs to retry the failed block
                             if let Some(ref inputs) = last_proving_inputs {
@@ -214,55 +228,81 @@ impl ProvingClient {
     }
 
     // initialize a aggregator proving client
-    pub async fn init_agg_proving_client(&self) -> AggregatorClient<Channel> {
+    pub async fn init_agg_proving_client(
+        &self,
+        cancellation_token: &CancellationToken,
+    ) -> AggregatorClient<Channel> {
         let max_msg_bytes = self.config.max_msg_bytes;
         let agg_url = self.config.agg_url.clone();
 
         loop {
-            match AggregatorClient::connect(agg_url.to_string()).await {
-                Ok(client) => {
-                    info!("proving-client: successfully connected to aggregator at {agg_url}");
-                    return client
-                        .max_encoding_message_size(max_msg_bytes)
-                        .max_decoding_message_size(max_msg_bytes)
-                        .accept_compressed(CompressionEncoding::Zstd)
-                        .send_compressed(CompressionEncoding::Zstd);
+            select! {
+                _ = cancellation_token.cancelled() => {
+                    info!("proving-client: cancellation requested, stopping aggregator client initialization");
+                    panic!("proving-client: cancelled during aggregator client initialization");
                 }
-                Err(e) => {
-                    warn!("proving-client: failed to connect to aggregator at {agg_url}: {e}");
-                    warn!(
-                        "proving-client: retrying in {}s",
-                        CLIENT_RETRY_INTERVAL_SECONDS
-                    );
-                    sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)).await;
+                result = AggregatorClient::connect(agg_url.to_string()) => {
+                    match result {
+                        Ok(client) => {
+                            info!("proving-client: successfully connected to aggregator at {agg_url}");
+                            return client
+                                .max_encoding_message_size(max_msg_bytes)
+                                .max_decoding_message_size(max_msg_bytes)
+                                .accept_compressed(CompressionEncoding::Zstd)
+                                .send_compressed(CompressionEncoding::Zstd);
+                        }
+                        Err(e) => {
+                            warn!("proving-client: failed to connect to aggregator at {agg_url}: {e}");
+                            warn!(
+                                "proving-client: retrying in {}s",
+                                CLIENT_RETRY_INTERVAL_SECONDS
+                            );
+                        }
+                    }
+                }
+                _ = sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)) => {
+                    // Continue to next iteration
                 }
             }
         }
     }
 
     // initialize subblock proving clients
-    pub async fn init_subblock_proving_clients(&self) -> Vec<SubblockClient<Channel>> {
+    pub async fn init_subblock_proving_clients(
+        &self,
+        cancellation_token: &CancellationToken,
+    ) -> Vec<SubblockClient<Channel>> {
         let max_msg_bytes = self.config.max_msg_bytes;
         let subblock_urls = &self.config.subblock_urls;
         let mut subblock_clients = Vec::with_capacity(subblock_urls.len());
         for url in subblock_urls {
             let client = loop {
-                match SubblockClient::connect(url.to_string()).await {
-                    Ok(client) => {
-                        info!("proving-client: successfully connected to subblock at {url}");
-                        break client
-                            .max_encoding_message_size(max_msg_bytes)
-                            .max_decoding_message_size(max_msg_bytes)
-                            .accept_compressed(CompressionEncoding::Zstd)
-                            .send_compressed(CompressionEncoding::Zstd);
+                select! {
+                    _ = cancellation_token.cancelled() => {
+                        info!("proving-client: cancellation requested, stopping subblock client initialization");
+                        panic!("proving-client: cancelled during subblock client initialization");
                     }
-                    Err(e) => {
-                        warn!("proving-client: failed to connect to subblock at {url}: {e}");
-                        warn!(
-                            "proving-client: retrying in {}s",
-                            CLIENT_RETRY_INTERVAL_SECONDS
-                        );
-                        sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)).await;
+                    result = SubblockClient::connect(url.to_string()) => {
+                        match result {
+                            Ok(client) => {
+                                info!("proving-client: successfully connected to subblock at {url}");
+                                break client
+                                    .max_encoding_message_size(max_msg_bytes)
+                                    .max_decoding_message_size(max_msg_bytes)
+                                    .accept_compressed(CompressionEncoding::Zstd)
+                                    .send_compressed(CompressionEncoding::Zstd);
+                            }
+                            Err(e) => {
+                                warn!("proving-client: failed to connect to subblock at {url}: {e}");
+                                warn!(
+                                    "proving-client: retrying in {}s",
+                                    CLIENT_RETRY_INTERVAL_SECONDS
+                                );
+                            }
+                        }
+                    }
+                    _ = sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)) => {
+                        // Continue to next iteration
                     }
                 }
             };
