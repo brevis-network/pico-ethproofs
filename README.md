@@ -15,7 +15,7 @@ Design goal: minimize end‑to‑end latency for chain‑tip proving by scaling 
 ## Getting Started
 
 ### 0) Multi‑machine setup
-Follow **`doc/multi_machine_setup.md`** to provision and register the **Aggregator** and **Subblock** workers. You’ll obtain:
+Follow [docs/multi-machine-setup.md](./docs/multi-machine-setup.md) to provision and register the **Aggregator** and **Subblock** workers. You’ll obtain:
 - `PROVING_AGG_URL`: gRPC endpoint of the Aggregator
 - `PROVING_SUBBLOCK_URLS`: comma‑separated gRPC endpoints of Subblock workers
 
@@ -116,7 +116,7 @@ Client flags:
 - `--count <u64>=1`
 - `--report-path`, `--http-url`, `--ws-url` as above
 
-> **Reproduction**: With Mode C and `doc/reproduce_01_Sep_2025.md`, you can reproduce Pico’s **01 Sep 2025** test results from block inputs dumped on your side.
+> **Reproduction**: With Mode C and `docs/reproduce_01_Sep_2025.md`, you can reproduce Pico’s **01 Sep 2025** test results from block inputs dumped on your side.
 
 ---
 
