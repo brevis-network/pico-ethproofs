@@ -210,6 +210,7 @@ validate_config() {
         ".aggregator.remote_dir"
         ".aggregator.orchestrator_client_addr"
         ".aggregator.final_aggregator_client_addr"
+        ".aggregator.proof_service_addr"
         ".workers"
         ".paths.perf_data_dir"
         ".docker.prefix"
@@ -671,7 +672,7 @@ ORCH_EXPECTED_INDICES=$indices_csv
 # Run ID for tracking this experiment
 RUN_ID=$(yq eval '.experiment.run_id' "$config_file")
 
-PROOF_SERVICE_ADDR=http://localhost:58888
+PROOF_SERVICE_ADDR=$(yq eval '.aggregator.proof_service_addr' "$config_file")
 
 # =============================================================================
 # Advanced Settings (Optional - uncomment to override defaults)
