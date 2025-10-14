@@ -236,29 +236,36 @@ impl ProvingClient {
         let agg_url = self.config.agg_url.clone();
 
         loop {
+            // Check for cancellation first
+            if cancellation_token.is_cancelled() {
+                info!("proving-client: cancellation requested, stopping aggregator client initialization");
+                panic!("proving-client: cancelled during aggregator client initialization");
+            }
+
+            // Try to connect
+            match AggregatorClient::connect(agg_url.to_string()).await {
+                Ok(client) => {
+                    info!("proving-client: successfully connected to aggregator at {agg_url}");
+                    return client
+                        .max_encoding_message_size(max_msg_bytes)
+                        .max_decoding_message_size(max_msg_bytes)
+                        .accept_compressed(CompressionEncoding::Zstd)
+                        .send_compressed(CompressionEncoding::Zstd);
+                }
+                Err(e) => {
+                    warn!("proving-client: failed to connect to aggregator at {agg_url}: {e}");
+                    warn!(
+                        "proving-client: retrying in {}s",
+                        CLIENT_RETRY_INTERVAL_SECONDS
+                    );
+                }
+            }
+
+            // Wait with cancellation support
             select! {
                 _ = cancellation_token.cancelled() => {
                     info!("proving-client: cancellation requested, stopping aggregator client initialization");
                     panic!("proving-client: cancelled during aggregator client initialization");
-                }
-                result = AggregatorClient::connect(agg_url.to_string()) => {
-                    match result {
-                        Ok(client) => {
-                            info!("proving-client: successfully connected to aggregator at {agg_url}");
-                            return client
-                                .max_encoding_message_size(max_msg_bytes)
-                                .max_decoding_message_size(max_msg_bytes)
-                                .accept_compressed(CompressionEncoding::Zstd)
-                                .send_compressed(CompressionEncoding::Zstd);
-                        }
-                        Err(e) => {
-                            warn!("proving-client: failed to connect to aggregator at {agg_url}: {e}");
-                            warn!(
-                                "proving-client: retrying in {}s",
-                                CLIENT_RETRY_INTERVAL_SECONDS
-                            );
-                        }
-                    }
                 }
                 _ = sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)) => {
                     // Continue to next iteration
@@ -277,29 +284,36 @@ impl ProvingClient {
         let mut subblock_clients = Vec::with_capacity(subblock_urls.len());
         for url in subblock_urls {
             let client = loop {
+                // Check for cancellation first
+                if cancellation_token.is_cancelled() {
+                    info!("proving-client: cancellation requested, stopping subblock client initialization");
+                    panic!("proving-client: cancelled during subblock client initialization");
+                }
+
+                // Try to connect
+                match SubblockClient::connect(url.to_string()).await {
+                    Ok(client) => {
+                        info!("proving-client: successfully connected to subblock at {url}");
+                        break client
+                            .max_encoding_message_size(max_msg_bytes)
+                            .max_decoding_message_size(max_msg_bytes)
+                            .accept_compressed(CompressionEncoding::Zstd)
+                            .send_compressed(CompressionEncoding::Zstd);
+                    }
+                    Err(e) => {
+                        warn!("proving-client: failed to connect to subblock at {url}: {e}");
+                        warn!(
+                            "proving-client: retrying in {}s",
+                            CLIENT_RETRY_INTERVAL_SECONDS
+                        );
+                    }
+                }
+
+                // Wait with cancellation support
                 select! {
                     _ = cancellation_token.cancelled() => {
                         info!("proving-client: cancellation requested, stopping subblock client initialization");
                         panic!("proving-client: cancelled during subblock client initialization");
-                    }
-                    result = SubblockClient::connect(url.to_string()) => {
-                        match result {
-                            Ok(client) => {
-                                info!("proving-client: successfully connected to subblock at {url}");
-                                break client
-                                    .max_encoding_message_size(max_msg_bytes)
-                                    .max_decoding_message_size(max_msg_bytes)
-                                    .accept_compressed(CompressionEncoding::Zstd)
-                                    .send_compressed(CompressionEncoding::Zstd);
-                            }
-                            Err(e) => {
-                                warn!("proving-client: failed to connect to subblock at {url}: {e}");
-                                warn!(
-                                    "proving-client: retrying in {}s",
-                                    CLIENT_RETRY_INTERVAL_SECONDS
-                                );
-                            }
-                        }
                     }
                     _ = sleep(Duration::from_secs(CLIENT_RETRY_INTERVAL_SECONDS)) => {
                         // Continue to next iteration
