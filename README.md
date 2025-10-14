@@ -116,7 +116,7 @@ Client flags:
 - `--count <u64>=1`
 - `--report-path`, `--http-url`, `--ws-url` as above
 
-> **Reproduction**: With Mode C and `docs/reproduce_01_Sep_2025.md`, you can reproduce Pico’s **01 Sep 2025** test results from block inputs dumped on your side.
+> **Reproduction**: With Mode C and [docs/reproduce_01_Sep_2025.md](./docs/reproduce_01_Sep_2025.md), you can reproduce Pico’s **01 Sep 2025** test results from block inputs dumped on your side.
 
 ---
 
