@@ -61,8 +61,16 @@ nvcc --version
 ## Install Development Tools
 
 ```
-sudo apt-get install -y build-essential cmake git pkg-config
-sudo apt-get install -y libssl-dev
+sudo apt-get update && sudo apt-get install -y \
+  build-essential cmake git pkg-config libssl-dev \
+  clang-14 libclang-14-dev llvm-14-dev
+
+echo 'export LIBCLANG_PATH=/usr/lib/llvm-14/lib' >> ~/.bashrc && \
+echo 'export CLANG_PATH=/usr/bin/clang-14' >> ~/.bashrc && \
+echo 'export LLVM_CONFIG_PATH=/usr/bin/llvm-config-14' >> ~/.bashrc && \
+source ~/.bashrc
+
+clang-14 --version
 ```
 
 And follow [this link](https://www.rust-lang.org/tools/install) to install Rust.
