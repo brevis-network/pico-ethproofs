@@ -136,19 +136,20 @@ EOF
     remove_image_with_dependencies() {
         local host="$1"
         local user="$2"
-        local container_name="$3"
-        local image_name="$4"
+        local port="$3"
+        local container_name="$4"
+        local image_name="$5"
 
         log "Attempting to remove image $image_name on ${user}@${host}..."
-        if ssh_exec "$user" "$host" "$DOCKER_PREFIX rmi $image_name >/dev/null 2>&1"; then
+        if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX rmi $image_name >/dev/null 2>&1"; then
             log "Image $image_name removed on ${user}@${host}"
             return 0
         fi
 
         warn "Image $image_name in use on ${user}@${host}, removing dependent container $container_name..."
-        stop_and_remove_container "$host" "$user" "$container_name" || true
+        stop_and_remove_container "$host" "$user" "$container_name" "$port" || true
 
-        if ssh_exec "$user" "$host" "$DOCKER_PREFIX rmi $image_name >/dev/null 2>&1"; then
+        if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX rmi $image_name >/dev/null 2>&1"; then
             log "Image $image_name removed on ${user}@${host}"
             return 0
         else
@@ -160,16 +161,16 @@ EOF
     case "$mode" in
         all|agg)
             log "Removing aggregator image on ${AGG_USER}@${AGG_HOST}..."
-            remove_image_with_dependencies "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$IMAGE_NAME_AGGREGATOR" || true
+            remove_image_with_dependencies "$AGG_HOST" "$AGG_USER" "$AGG_PORT" "$CONTAINER_NAME_AGGREGATOR" "$IMAGE_NAME_AGGREGATOR" || true
             ;;
     esac
 
     case "$mode" in
         all|workers)
             for worker_spec in "${WORKERS[@]}"; do
-                read -r host user wid idx remote_dir <<< "$worker_spec"
+                read -r host user port wid idx remote_dir <<< "$worker_spec"
                 log "Removing worker image on ${user}@${host} (worker $wid)..."
-                remove_image_with_dependencies "$host" "$user" "$CONTAINER_NAME_WORKER" "$IMAGE_NAME_WORKER" || true
+                remove_image_with_dependencies "$host" "$user" "$port" "$CONTAINER_NAME_WORKER" "$IMAGE_NAME_WORKER" || true
                 apply_worker_delay
             done
             ;;
@@ -215,11 +216,11 @@ cmd_logs() {
                 local timestamp=$(date +"$TIMESTAMP_FORMAT")
                 local log_file="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-live-${timestamp}.log"
                 log "Saving aggregator logs to $log_file..."
-                ssh_exec "$AGG_USER" "$AGG_HOST" "$DOCKER_PREFIX logs $CONTAINER_NAME_AGGREGATOR &> '$log_file'"
+                ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "$DOCKER_PREFIX logs $CONTAINER_NAME_AGGREGATOR &> '$log_file'"
                 log "Logs saved to $log_file"
             else
                 log "Following aggregator logs (Ctrl-C to exit)..."
-                ssh_exec "$AGG_USER" "$AGG_HOST" "$DOCKER_PREFIX logs -f $CONTAINER_NAME_AGGREGATOR"
+                ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "$DOCKER_PREFIX logs -f $CONTAINER_NAME_AGGREGATOR"
             fi
             ;;
         worker*)
@@ -229,16 +230,16 @@ cmd_logs() {
                 local idx=$((worker_num - 1))
                 
                 if [[ $idx -lt ${#WORKERS[@]} ]]; then
-                    read -r host user wid _ remote_dir <<< "${WORKERS[$idx]}"
+                    read -r host user port wid deferred_idx remote_dir <<< "${WORKERS[$idx]}"
                     if [[ "$save_to_file" == "true" ]]; then
                         local timestamp=$(date +"$TIMESTAMP_FORMAT")
                         local log_file="${remote_dir}/${LOGS_DIR}/subblock-${wid}-live-${timestamp}.log"
                         log "Saving ${wid} logs to $log_file..."
-                        ssh_exec "$user" "$host" "$DOCKER_PREFIX logs $CONTAINER_NAME_WORKER &> '$log_file'"
+                        ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX logs $CONTAINER_NAME_WORKER &> '$log_file'"
                         log "Logs saved to $log_file"
                     else
                         log "Following ${wid} logs (Ctrl-C to exit)..."
-                        ssh_exec "$user" "$host" "$DOCKER_PREFIX logs -f $CONTAINER_NAME_WORKER"
+                        ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX logs -f $CONTAINER_NAME_WORKER"
                     fi
                 else
                     error "Invalid worker number: $worker_num (max: ${#WORKERS[@]})"
@@ -264,13 +265,13 @@ cmd_save_logs() {
     
     # Save aggregator logs
     local agg_log="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-manual-${timestamp}.log"
-    save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" || true
+    save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" "$AGG_PORT" || true
     
     # Save worker logs
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir <<< "$worker_spec"
         local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-manual-${timestamp}.log"
-        save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" || true
+        save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
     done
     
     log "=== Logs Saved ==="

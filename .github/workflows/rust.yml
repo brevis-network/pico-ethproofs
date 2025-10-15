@@ -6,6 +6,7 @@ on:
       - '.gitignore'
       - 'Makefile'
       - 'README.md'
+      - 'docs/**'
   pull_request:
     branches:
       - main
@@ -13,6 +14,7 @@ on:
       - '.gitignore'
       - 'Makefile'
       - 'README.md'
+      - 'docs/**'
 
 name: basic-check
 
