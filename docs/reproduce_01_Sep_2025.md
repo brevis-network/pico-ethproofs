@@ -13,7 +13,7 @@ This document describes how to reproduce proving the blocks of Sep 01 2025 by us
 ### Prerequisites
 
 #### All Machines
-- Docker installed and configured
+- Docker installed
 - GPU access enabled for Docker (GPU machines only)
 - Network connectivity between all machines
 - SSH access configured
