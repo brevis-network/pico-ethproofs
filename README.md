@@ -128,7 +128,7 @@ Client flags:
 
 ## Security
 
-This repository **has not undergone a security audit**. It is not recommended for use in production environments.
+Brevis Pico has been audited by Sherlock with audit report coming soon.
 
 
 ## Acknowledgements
