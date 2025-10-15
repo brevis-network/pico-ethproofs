@@ -1,35 +1,40 @@
-# Reproducing Proving Blocks of Sep 01 2025
+# Reproducing Proving Blocks from September 1 2025
 
-This document describes how to reproduce proving the blocks of Sep 01 2025 by using 1 CPU machine and 8 GPU machines.
+This document describes how to reproduce the proving of blocks from September 1 2025, using one CPU machine and eight GPU machines.
 
-**Terminology Note:** This document uses the following terminology:
-- **CPU machine**: Runs the pico-ethproofs server and a client
-- **GPU machines**: 8 total machines (1 aggregator machine + 7 subblock machines)
-- **Aggregator machine**: 1 GPU machine that runs the aggregator container
-- **Subblock machines**: 7 GPU machines that run subblock worker containers
-- **Aggregator container**: Docker container running on the aggregator machine
-- **Subblock worker containers**: Docker containers running on the subblock machines
+**Terminology Note:** The following terminology is used throughout this document:
+- **CPU machine**: Runs the pico-ethproofs server and client.
+- **GPU machines**: Eight machines in total (one aggregator + seven subblock workers).
+- **Aggregator machine**: One GPU machine that runs the aggregator container.
+- **Subblock machines**: Seven GPU machines that run subblock worker containers.
+- **Aggregator container**: Docker container running on the aggregator machine.
+- **Subblock worker containers**: Docker containers running on the subblock machines.
 
 ---
 
 ## 1. System Setup
 
 ### Machines
-- **1 CPU machine:** run a pico-ethproofs server and a client for fetching the blocks and triggering the whole proving process, setup a normal [Rust](https://rust-lang.org/) development machine.
-- **8 GPU machines:** run the aggregator and subblock worker containers as a proving cluster, reference [multi-machine-setup.md](./multi-machine-setup.md) for these GPU machine setup.
+- **1 CPU machine:**  
+  Runs the `pico-ethproofs` server and client, which are responsible for fetching blocks and triggering the entire proving process.  
+  Set it up as a standard [Rust](https://rust-lang.org/) development environment.
+
+- **8 GPU machines:**  
+  Run the aggregator and subblock worker containers to form a proving cluster.  
+  Refer to [multi-machine-setup.md](./multi-machine-setup.md) for details on setting up these GPU machines.
 
 ### Prerequisites
 
-#### CPU Machine (Client)
-- Git installed
-- Rust development environment
-- SSH key pair generated for accessing GPU machines
+#### CPU Machine (`pico-ethproofs`)
+- Git installed.
+- Rust development environment set up.
+- SSH key pair generated for accessing GPU machines.
 
 #### GPU Machines (1 Aggregator Machine + 7 Subblock Machines)
-- Docker installed
-- GPU access enabled for Docker
-- Network connectivity between all machines
-- SSH access configured
+- Docker installed.
+- GPU access enabled for Docker.
+- Network connectivity configured between all machines.
+- SSH access properly set up.
 
 ---
 
@@ -37,7 +42,7 @@ This document describes how to reproduce proving the blocks of Sep 01 2025 by us
 
 ### 2.1 Clone Repository
 
-On the CPU machine (client):
+On the CPU machine (`pico-ethproofs`):
 
 ```bash
 git clone https://github.com/brevis-network/pico-ethproofs.git
@@ -367,6 +372,9 @@ export RPC_WS_URL="YOUR_RPC_WS_URL"
 
 export PROVING_AGG_URL="<AGG_URL from multi-machine setup>"
 export PROVING_SUBBLOCK_URLS="<SUBBLOCK_URL1,SUBBLOCK_URL2,... from multi-machine setup>"
+# We require one aggregator and seven subblock provers. For example:
+# export PROVING_AGG_URL="http://0.0.0.0:50053"
+# export PROVING_SUBBLOCK_URLS="http://10.0.0.1:50053,http://10.0.0.2:50053,http://10.0.0.3:50053,http://10.0.0.4:50053,http://10.0.0.5:50053,http://10.0.0.6:50053,http://10.0.0.7:50053"
 ```
 
 **Note:** Replace placeholder values with your actual RPC endpoints and the URLs from your multi-machine setup configuration.
