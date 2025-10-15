@@ -2,7 +2,7 @@
 
 ## Machine Specifications
 
-This section documents the exact hardware & system environment used for Pico Real-Time-Proving.
+This section documents the exact hardware & system environment used for reproducing Pico's Real-Time Proving on ETH blocks on Sep. 01, 2025.
 
 * **OS:** Ubuntu **22.04.4 LTS**, kernel **5.15.0-113-generic**
 * **CPU:** 124 vCPUs powered by **AMD EPYC 9355 32-Core Processor**
