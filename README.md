@@ -125,6 +125,9 @@ Client flags:
 
 > **Reproduction**: With Mode C and [docs/reproduce-01-sep-2025.md](./docs/reproduce-01-sep-2025.md), you can reproduce Pico’s reported Real-Time-Proving results on blocks on **Sep. 01, 2025** from block inputs dumped on your side.
 
+**Result Output**  
+Proving results are saved to proving_report.csv.
+
 
 ## Security
 
