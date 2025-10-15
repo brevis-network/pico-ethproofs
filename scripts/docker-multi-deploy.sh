@@ -192,7 +192,7 @@ deploy_aggregator() {
     if [[ "$keep_tar" != "true" ]]; then
         local image_filename=$(basename "$agg_image")
         log "Removing tar file from aggregator..."
-        ssh_exec "$AGG_USER" "$AGG_HOST" "rm -f '${AGG_REMOTE_DIR}/${image_filename}'" || true
+        ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "rm -f '${AGG_REMOTE_DIR}/${image_filename}'" || true
     fi
     
     log "=== Aggregator Deployment Complete ==="
