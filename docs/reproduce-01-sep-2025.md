@@ -368,8 +368,8 @@ export RUST_LOG=info
 export RPC_HTTP_URL="YOUR_RPC_HTTP_URL"
 export RPC_WS_URL="YOUR_RPC_WS_URL"
 
-export PROVING_AGG_URL="<AGG_URL from multi-machine setup>"
-export PROVING_SUBBLOCK_URLS="<SUBBLOCK_URL1,SUBBLOCK_URL2,... from multi-machine setup>"
+export PROVING_AGG_URL="<IP:50053 of the machine running the aggregator>"
+export PROVING_SUBBLOCK_URLS="<IP:50053 of the machines running subblock workers>"
 # We require one aggregator and seven subblock provers. For example:
 # export PROVING_AGG_URL="http://0.0.0.0:50053"
 # export PROVING_SUBBLOCK_URLS="http://10.0.0.1:50053,http://10.0.0.2:50053,http://10.0.0.3:50053,http://10.0.0.4:50053,http://10.0.0.5:50053,http://10.0.0.6:50053,http://10.0.0.7:50053"
