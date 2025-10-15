@@ -99,11 +99,9 @@ ssh-keygen
 ```
 
 2. Add the public key to all GPU machines:
-```bash
-ssh-copy-id ubuntu@<aggregator-ip>
-ssh-copy-id ubuntu@<subblock1-ip>
-# ... repeat for all 7 subblock machines
-```
+   - Locate your public key file (either `~/.ssh/id_ed25519.pub` or `~/.ssh/id_rsa.pub`)
+   - Copy the contents of your public key to the `~/.ssh/authorized_keys` file on each GPU machine (aggregator + all 7 subblock machines)
+   - Ensure the `~/.ssh` directory and `authorized_keys` file have proper permissions on the GPU machines
 
 3. Test SSH connectivity to confirm connections:
 ```bash
