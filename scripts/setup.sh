@@ -81,6 +81,8 @@ Examples:
     # Initial setup
     $0 init                    # Create config.yaml from template
     nano ../config.yaml        # Edit with your settings
+    $0 validate                # Validate configuration
+    $0 check-all               # Run all system checks
     $0 generate-env            # Generate .env files from config.yaml
     $0 distribute              # Deploy .env files to all machines
     
@@ -605,10 +607,10 @@ init_config() {
     echo ""
     info "Next steps:"
     echo "  1. Edit $CONFIG_FILE with your machine IPs and settings"
-    echo "  2. Run: ./setup.sh generate-env"
-    echo "  3. Run: ./setup.sh validate"
+    echo "  2. Run: ./setup.sh validate"
+    echo "  3. Run: ./setup.sh check-all"
     echo ""
-    next_step "edit ../config.yaml and run ./setup.sh generate-env" "configure and generate .env files"
+    next_step "edit ../config.yaml and run ./setup.sh validate" "configure your setup and validate configuration"
     
     return 0
 }
@@ -865,7 +867,7 @@ distribute_env_files() {
         if [[ "$dry_run" != "true" ]]; then
             success "Environment files distributed successfully"
             echo ""
-            next_step "run cd scripts && ./docker-multi-control.sh deploy" "deploy Docker images to all machines"
+            next_step "load Docker images on all GPU machines, then run ./docker-multi-control.sh start" "load images and start containers"
         fi
         return 0
     else
@@ -901,7 +903,7 @@ generate_env_only() {
     
     if generate_env_files "$CONFIG_FILE"; then
         echo ""
-        next_step "run ./setup.sh validate" "validate the generated .env files"
+        next_step "run ./setup.sh distribute" "distribute .env files to all machines"
         return 0
     else
         return 1
@@ -1158,7 +1160,7 @@ main() {
                 info "Aggregator: $(yq eval '.aggregator.host' "$config_file" 2>/dev/null || echo 'not found')"
                 info "Workers: $(yq eval '.workers | length' "$config_file" 2>/dev/null || echo '0')"
                 echo ""
-                next_step "run ./setup.sh generate-env" "generate .env files from configuration"
+                next_step "run ./setup.sh check-all" "run all system checks"
                 exit 0
             else
                 error "Configuration validation failed"
@@ -1187,7 +1189,7 @@ main() {
             
             if [[ "$all_passed" == "true" ]]; then
                 success "All checks passed"
-                next_step "run cd scripts && ./docker-multi-control.sh deploy" "deploy Docker images"
+                next_step "run ./setup.sh generate-env" "generate .env files from configuration"
             else
                 error "Some checks failed"
                 exit 1
