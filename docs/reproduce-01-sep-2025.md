@@ -1,6 +1,6 @@
-# Reproducing Proving Blocks from September 1 2025
+# Reproducing Results for Proving Blocks on September 1 2025
 
-This document describes how to reproduce the proving of blocks from September 1 2025, using one CPU machine and eight GPU machines.
+This document describes how to reproduce the results for proving of blocks on September 1 2025, using one CPU machine and eight GPU machines each with 8 GPU cards.
 
 **Terminology Note:** The following terminology is used throughout this document:
 - **CPU machine**: Runs the pico-ethproofs server and client.
