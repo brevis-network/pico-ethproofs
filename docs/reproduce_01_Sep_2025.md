@@ -2,26 +2,34 @@
 
 This document describes how to reproduce proving the blocks of Sep 01 2025 by using 1 CPU machine and 8 GPU machines.
 
+**Terminology Note:** This document uses the following terminology:
+- **CPU machine**: Runs the pico-ethproofs server and a client
+- **GPU machines**: 8 total machines (1 aggregator machine + 7 subblock machines)
+- **Aggregator machine**: 1 GPU machine that runs the aggregator container
+- **Subblock machines**: 7 GPU machines that run subblock worker containers
+- **Aggregator container**: Docker container running on the aggregator machine
+- **Subblock worker containers**: Docker containers running on the subblock machines
+
 ---
 
 ## 1. System Setup
 
 ### Machines
 - **1 CPU machine:** run a pico-ethproofs server and a client for fetching the blocks and triggering the whole proving process, setup a normal [Rust](https://rust-lang.org/) development machine.
-- **8 GPU machines:** run the Aggregator and Subblock docker containers as a proving cluster, reference [multi-machine-setup.md](./multi-machine-setup.md) for these GPU machine setup.
+- **8 GPU machines:** run the aggregator and subblock worker containers as a proving cluster, reference [multi-machine-setup.md](./multi-machine-setup.md) for these GPU machine setup.
 
 ### Prerequisites
-
-#### All Machines
-- Docker installed
-- GPU access enabled for Docker (GPU machines only)
-- Network connectivity between all machines
-- SSH access configured
 
 #### CPU Machine (Client)
 - Git installed
 - Rust development environment
-- SSH key pair generated for accessing worker machines
+- SSH key pair generated for accessing GPU machines
+
+#### GPU Machines (1 Aggregator Machine + 7 Subblock Machines)
+- Docker installed
+- GPU access enabled for Docker
+- Network connectivity between all machines
+- SSH access configured
 
 ---
 
@@ -38,7 +46,7 @@ cd pico-ethproofs
 
 ### 2.2 Download Program Cache
 
-On all machines (aggregator + workers):
+On all GPU machines (1 aggregator machine + 7 subblock machines):
 
 1. Download the program cache:
 ```bash
@@ -50,11 +58,33 @@ wget https://pico-proofs.s3.us-west-2.amazonaws.com/ethproofs-rel-20251015/progr
 tar xzf program_cache.bin.tar.gz
 ```
 
-### 2.2 Prepare Performance Data Files
+### 2.3 Download Docker Images
 
-Put all three files from `pico-ethproof/data` into a single folder on all workers (aggregator + subblock machines).
+On the GPU machines only, download the required Docker images:
 
-### 2.3 Configure SSH Access
+1. **On the aggregator machine:**
+```bash
+wget https://pico-proofs.s3.us-west-2.amazonaws.com/ethproofs-rel-20251015/pico-aggregator.tar.gz
+```
+
+2. **On each subblock machine:**
+```bash
+wget https://pico-proofs.s3.us-west-2.amazonaws.com/ethproofs-rel-20251015/pico-subblock-worker.tar.gz
+```
+
+**Note:** The aggregator Docker image is only needed on the aggregator machine, and the subblock worker Docker image is only needed on the subblock machines.
+
+### 2.4 Prepare Performance Data Files
+
+Copy the three files from the `data` folder in this repository to the same directory on all GPU machines (1 aggregator machine + 7 subblock machines):
+
+- `aggregator-elf`
+- `subblock-elf`
+- `vk_digest.bin`
+
+**Important:** Place all three files in the same directory. The path to this directory will be configured in the `config.yaml` file under the `paths.perf_data_dir` setting.
+
+### 2.5 Configure SSH Access
 
 On the CPU machine (client):
 
@@ -63,18 +93,18 @@ On the CPU machine (client):
 ssh-keygen
 ```
 
-2. Add the public key to all worker machines:
+2. Add the public key to all GPU machines:
 ```bash
 ssh-copy-id ubuntu@<aggregator-ip>
-ssh-copy-id ubuntu@<worker1-ip>
-# ... repeat for all workers
+ssh-copy-id ubuntu@<subblock1-ip>
+# ... repeat for all 7 subblock machines
 ```
 
 3. Test SSH connectivity to confirm connections:
 ```bash
 ssh ubuntu@<aggregator-ip>
-ssh ubuntu@<worker1-ip>
-# ... repeat for all workers
+ssh ubuntu@<subblock1-ip>
+# ... repeat for all 7 subblock machines
 ```
 
 ---
@@ -94,9 +124,9 @@ cd scripts
 
 Edit `config.yaml` to configure:
 - SSH connection details for all machines
-- `perf_data_dir`: Path to performance data directory
+- `perf_data_dir`: Path to performance data directory (where you placed the three files: aggregator-elf, subblock-elf, vk_digest.bin)
 - `program_cache_file`: Path to program cache file
-- Worker machine IP addresses and ports
+- Subblock machine IP addresses and ports (7 machines)
 - NUMA settings (if applicable)
 
 ### 3.3 Validate Configuration
@@ -145,8 +175,8 @@ Generate `.env` files from configuration:
 ```
 
 This creates:
-- `.env.aggregator`: Environment file for the aggregator machine
-- `.env.subblock`: Template for subblock worker environment files
+- `.env.aggregator`: Environment file for the aggregator container
+- `.env.subblock`: Template for subblock worker container environment files
 
 Expected output:
 ```
@@ -181,18 +211,23 @@ This copies the appropriate `.env` files to each machine via SSH.
 
 ## 4. Launch Docker Containers
 
-### 4.1 Deploy Docker Images
+### 4.1 Load Docker Images
 
-Deploy Docker images from the aggregator machine to all machines:
+On each GPU machine, load the downloaded Docker images:
 
+1. **On the aggregator machine:**
 ```bash
-cd scripts
-./docker-multi-control.sh deploy
+gunzip -c pico-aggregator.tar.gz | sudo docker load
+```
+
+2. **On each subblock machine:**
+```bash
+gunzip -c pico-subblock-worker.tar.gz | sudo docker load
 ```
 
 ### 4.2 Start Containers
 
-Start all containers (aggregator and workers):
+Start all containers (aggregator container and subblock worker containers):
 
 ```bash
 ./docker-multi-control.sh start
@@ -310,7 +345,7 @@ This will process 7,200 blocks starting from block 23264565.
 Monitor the proving process:
 
 - Logs will show progress for each proving task
-- Check container logs on worker machines if needed
+- Check container logs on aggregator and subblock machines if needed (using `sudo docker logs -f pico-aggregator|pico-subblock-worker`)
 - Wait until all proving results are saved into `proving_report.csv` in the working directory
 - The process will generate performance metrics and proof verification data
 
@@ -370,7 +405,7 @@ cd scripts
 
 ## Notes
 
-- Ensure network connectivity between aggregator and subblock machines
+- Ensure network connectivity between aggregator machine and subblock machines
 - Docker containers must have GPU access for GPU-accelerated proving
 - Adjust environment variables according to your specific setup
 - The total end-to-end proving time for 7,200 blocks is approximately 13.5 hours with the machine specifications described in [multi-machine-setup.md](./multi-machine-setup.md). The actual wall-clock time will be longer when accounting for network data transfer delays
