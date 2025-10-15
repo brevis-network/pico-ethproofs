@@ -1,4 +1,4 @@
-# Reproducing Results for Proving Blocks on September 1 2025
+# Reproducing Results for Proving Blocks on Sep. 01, 2025
 
 This document describes how to reproduce the results for proving of blocks on September 1 2025, using one CPU machine and eight GPU machines each with 8 GPU cards.
 
