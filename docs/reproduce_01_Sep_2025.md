@@ -359,6 +359,12 @@ cd scripts
 ./docker-multi-control.sh stop
 ```
 
+### Stop and Remove All Containers
+```bash
+cd scripts
+./docker-multi-control.sh cleanup
+```
+
 ### Restart Containers
 ```bash
 ./docker-multi-control.sh restart
@@ -372,6 +378,11 @@ cd scripts
 ### View Container Logs
 ```bash
 ./docker-multi-control.sh logs [aggregator|worker1|worker2|...]
+```
+
+### For More Detailed Commands and Instructions
+```bash
+./docker-multi-control.sh -h
 ```
 
 ---
