@@ -122,12 +122,73 @@ cd scripts
 
 ### 3.2 Modify Configuration
 
-Edit `config.yaml` to configure:
-- SSH connection details for all machines
-- `perf_data_dir`: Path to performance data directory (where you placed the three files: aggregator-elf, subblock-elf, vk_digest.bin)
-- `program_cache_file`: Path to program cache file
-- Subblock machine IP addresses and ports (7 machines)
-- NUMA settings (if applicable)
+Edit `config.yaml` to configure your multi-machine setup. Most fields can be left at their default values.
+
+#### **Mandatory Configurations** (You MUST change these)
+
+1. **Aggregator Host Configuration**
+   ```yaml
+   aggregator:
+     host: "192.168.1.10"  # CHANGE THIS to your aggregator machine IP
+     
+     # Client addresses (what workers connect to)
+     orchestrator_client_addr: "http://192.168.1.10:50052"      # CHANGE THIS to match your aggregator IP
+     final_aggregator_client_addr: "http://192.168.1.10:50051"  # CHANGE THIS to match your aggregator IP
+     
+     # Proof service configuration (points to CPU machine where pico-ethproofs server runs)
+     proof_service_addr: "http://192.168.1.1:58888"  # CHANGE THIS to your CPU machine IP and port
+   ```
+
+2. **Worker Machine Configuration** (7 workers required)
+   ```yaml
+   workers:
+     - host: "192.168.1.11"      # CHANGE THIS to your worker 1 IP
+       worker_id: "worker1"       # CHANGE THIS to your preferred worker name
+       index: 0                   # Keep as-is (sequential 0-6)
+       
+     - host: "192.168.1.12"      # CHANGE THIS to your worker 2 IP
+       worker_id: "worker2"       # CHANGE THIS to your preferred worker name
+       index: 1                   # Keep as-is
+     
+     # ... (repeat for workers 3-7 with indices 2-6)
+   ```
+
+3. **Path Configuration**
+   ```yaml
+   paths:
+     # Directory containing aggregator-elf, subblock-elf, and vk_digest.bin
+     perf_data_dir: "/path/to/your/project/perf/bench_data"  # CHANGE THIS
+     
+     # Program cache file location (will be created if doesn't exist)
+     program_cache_file: "/path/to/your/project/program_cache.bin"  # CHANGE THIS
+   ```
+
+#### **Optional Configurations** (Leave as defaults unless needed)
+
+The following can be left at their default values:
+
+- **SSH Settings**: `user: "ubuntu"`, `port: 22`, `remote_dir: "/home/ubuntu/brevis"`
+  - Only change if you use a different SSH user, non-standard port, or different working directory
+  - **Important**: The `remote_dir` must exist on all GPU machines. Create it if needed:
+    ```bash
+    # On each GPU machine
+    mkdir -p /home/ubuntu/brevis
+    ```
+
+- **Docker Configuration**: `docker.prefix: "sudo docker"`
+  - Only change if your user is in the docker group (use `"docker"` instead)
+
+- **NUMA Settings**: `cpuset_cpus: "62-123"`, `cpuset_mems: "1"`
+  - Default works for most GPU servers. Adjust only if you know your hardware's NUMA topology
+
+- **SSH/Container Management Settings**: All retry, timeout, and connection settings
+  - Defaults are tuned for reliability across different network conditions
+
+- **Experiment Settings**: `run_id`, `chunk_size`, `split_threshold`, etc.
+  - Pre-configured for experiment reproducibility
+  - `run_id`: Used for logging and tracking purposes only, does not impact performance
+
+**Summary**: Focus on setting your machine IPs (aggregator + 7 workers), the two paths (`perf_data_dir` and `program_cache_file`), and ensure `remote_dir` exists on all GPU machines. Everything else can stay at defaults.
 
 ### 3.3 Validate Configuration
 
@@ -183,21 +244,12 @@ Expected output:
 ✓ Generated: /home/ubuntu/pico-ethproofs/.env.aggregator
 ✓ Generated: /home/ubuntu/pico-ethproofs/.env.subblock (template)
 
-Next: run ./setup.sh validate
-      Purpose: validate the generated .env files
+Next: run ./setup.sh distribute
+      Purpose: distribute .env files to all machines
 ```
 
-### 3.6 Validate Generated Environment Files
 
-Validate the generated `.env` files:
-
-```bash
-./setup.sh validate
-```
-
-This ensures all generated environment files are correctly formatted and contain required variables.
-
-### 3.7 Distribute Configuration
+### 3.6 Distribute Configuration
 
 Distribute environment files to all machines:
 
@@ -260,13 +312,15 @@ All containers should show status: `RUNNING`
 
 ## 5. Download Subblock Data
 
-On the CPU instance:
+On the CPU machine:
 
 1. Create a target folder:
 ```bash
 mkdir -p /home/ubuntu/subblocks-20250901
 cd /home/ubuntu/subblocks-20250901
 ```
+
+**Note:** Ensure you have sufficient disk space available.
 
 2. Download all block inputs:
 ```bash
