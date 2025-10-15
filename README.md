@@ -22,11 +22,13 @@ This repository provides an **all‑in‑one** system that fetches Ethereum bloc
 ## Getting Started
 
 ### 0) Multi‑machine setup
-Follow [docs/multi-machine-setup.md](./docs/multi-machine-setup.md) to provision and register the **Aggregator** and **Subblock** workers. You’ll obtain:
-- `PROVING_AGG_URL`: gRPC endpoint of the Aggregator
-- `PROVING_SUBBLOCK_URLS`: comma‑separated gRPC endpoints of Subblock workers
+Follow [docs/multi-machine-setup.md](./docs/multi-machine-setup.md) to configure the hardware and software environment (e.g., Rust, NVIDIA drivers, CUDA, etc.) on all machines. This step ensures that Aggregator and Subblock worker machines are correctly provisioned and ready for proving tasks.
 
 ### 1) Start `eth-proofs` server
+
+* For **mock proving**, you can directly start the `eth-proofs` server.
+* For **real proving**, first follow [docs/reproduce-01-sep-2025.md](./docs/reproduce-01-sep-2025.md) to launch the Aggregator and Subblock worker machines.
+  This process will provide you with `PROVING_AGG_URL` and `PROVING_SUBBLOCK_URLS` required in the next step.
 
 Set environment variables (example):
 
@@ -123,13 +125,11 @@ Client flags:
 
 > **Reproduction**: With Mode C and [docs/reproduce-01-sep-2025.md](./docs/reproduce-01-sep-2025.md), you can reproduce Pico’s reported Real-Time-Proving results on blocks on **Sep. 01, 2025** from block inputs dumped on your side.
 
----
 
 ## Security
 
 This repository **has not undergone a security audit**. It is not recommended for use in production environments.
 
----
 
 ## Acknowledgements
 
@@ -137,7 +137,6 @@ This repository **has not undergone a security audit**. It is not recommended fo
 - Thanks to **[paradigmxyz/reth](https://github.com/paradigmxyz/reth)** for Rust Ethereum support. The ELF files under `./data` are adapted from Reth and refactored into an Aggregator–Subblock architecture.
 - Inspired by **[succinctlabs/rsp-subblock](https://github.com/succinctlabs/rsp-subblock)** for its Subblock design.
 
----
 
 ## License
 
