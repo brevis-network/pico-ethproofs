@@ -46,11 +46,29 @@ struct Args {
     )]
     input_load_dir: Option<PathBuf>,
 
-    #[clap(long, env = "RPC_HTTP_URL", help = "RPC node HTTP URL")]
-    rpc_http_url: Url,
+    #[clap(
+        long,
+        env = "BASIC_RPC_HTTP_URL",
+        help = "Basic HTTP URL for common RPC requests"
+    )]
+    basic_rpc_http_url: Url,
+
+    #[clap(
+        long,
+        env = "DEBUG_RPC_HTTP_URL",
+        help = "Debug HTTP URL for debug RPC requests; specially for `debug_executionWitness`"
+    )]
+    debug_rpc_http_url: Url,
 
     #[clap(long, env = "RPC_WS_URL", help = "RPC node websocket URL")]
     rpc_ws_url: Url,
+
+    #[clap(
+        long,
+        env = "RPC_DEBUG_URL",
+        help = "RPC node HTTP URL supports `debug_executionWitness` method; required when latest-execution-witness feature is enabled"
+    )]
+    rpc_debug_url: Option<Url>,
 
     #[clap(
         long,
@@ -221,7 +239,8 @@ fn init_fetcher(args: &Args) -> (Arc<BlockFetcher>, Arc<BlockMsgEndpoint>) {
         args.is_input_emulated,
         args.input_dump_dir.clone(),
         args.input_load_dir.clone(),
-        args.rpc_http_url.clone(),
+        args.basic_rpc_http_url.clone(),
+        args.debug_rpc_http_url.clone(),
         args.rpc_ws_url.clone(),
         args.subblock_elf_path.clone(),
         args.agg_elf_path.clone(),

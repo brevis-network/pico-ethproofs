@@ -43,8 +43,11 @@ proof-proto = { path = "crates/proof-proto" }
 pico-sdk = { git = "https://github.com/brevis-network/pico.git", branch = "pico-subblock" }
 
 # rsp-subblock
-rsp-client-executor = { git = "https://github.com/brevis-network/pico-subblock", branch = "pico-subblock" }
-rsp-host-executor = { git = "https://github.com/brevis-network/pico-subblock", branch = "pico-subblock" }
+# TODO: fix basck to pico-subblock branch
+# rsp-client-executor = { git = "https://github.com/brevis-network/pico-subblock", branch = "pico-subblock" }
+# rsp-host-executor = { git = "https://github.com/brevis-network/pico-subblock", branch = "pico-subblock" }
+rsp-client-executor = { git = "https://github.com/brevis-network/pico-subblock", branch = "debug-execution-witness" }
+rsp-host-executor = { git = "https://github.com/brevis-network/pico-subblock", branch = "debug-execution-witness" }
 # debug on local
 # rsp-client-executor = { path = "../pico-subblock/crates/executor/client" }
 # rsp-host-executor = { path = "../pico-subblock/crates/executor/host" }

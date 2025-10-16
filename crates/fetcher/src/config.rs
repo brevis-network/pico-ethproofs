@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use derive_more::Constructor;
 use reqwest::Url;
 use std::path::PathBuf;
@@ -15,8 +17,11 @@ pub struct BlockFetcherConfig {
     // as `input_dump_dir`
     pub input_load_dir: Option<PathBuf>,
 
-    // http url of rpc node
-    pub rpc_http_url: Url,
+    // basic http url for common rpc requests
+    pub basic_rpc_http_url: Url,
+
+    // debug http url for debug rpc requests; specially for debug_executionWitness
+    pub debug_rpc_http_url: Url,
 
     // websocket url of rpc node
     pub rpc_ws_url: Url,
