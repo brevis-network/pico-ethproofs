@@ -106,7 +106,7 @@ EOF
 check_requirements() {
     local missing=()
     
-    for cmd in ssh scp docker python3 yq; do
+    for cmd in ssh scp python3 yq; do
         if ! command -v "$cmd" &> /dev/null; then
             missing+=("$cmd")
         fi
@@ -129,14 +129,6 @@ check_requirements() {
                 python3)
                     echo "  # Install Python 3" >&2
                     echo "  sudo apt update && sudo apt install python3 python3-yaml" >&2
-                    ;;
-                docker)
-                    echo "  # Install Docker (Official method)" >&2
-                    echo "  curl -fsSL https://get.docker.com | sh" >&2
-                    echo "  sudo usermod -aG docker \$USER" >&2
-                    echo "" >&2
-                    echo "  # Alternative: Ubuntu repository" >&2
-                    echo "  # sudo apt update && sudo apt install docker.io" >&2
                     ;;
                 *)
                     echo "  # Install $cmd" >&2
