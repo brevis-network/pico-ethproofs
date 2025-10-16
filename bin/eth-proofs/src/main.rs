@@ -54,6 +54,13 @@ struct Args {
 
     #[clap(
         long,
+        env = "RPC_DEBUG_URL",
+        help = "RPC node HTTP URL supports `debug_executionWitness` method; required when latest-execution-witness feature is enabled"
+    )]
+    rpc_debug_url: Option<Url>,
+
+    #[clap(
+        long,
         env = "SUBBLOCK_ELF_PATH",
         default_value = "data/subblock-elf",
         help = "Subblock ELF file path"

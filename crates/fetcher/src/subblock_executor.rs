@@ -28,14 +28,23 @@ impl SubblockExecutor {
     }
 
     // generate subblock and aggregation inputs
-    pub async fn generate_inputs(&self, block_number: u64) -> Result<ProvingInputs> {
-        // fetch eth block data and generate the subblock output
+    pub async fn generate_inputs(
+        &self,
+        is_latest_block: bool,
+        block_number: u64,
+    ) -> Result<ProvingInputs> {
+        let use_execution_witness = cfg!(feature = "latest-execution-witness");
         info!(
-            "subblock-executor: fetching and generating subblock output for block {block_number}",
+            "subblock-executor: fetching block {block_number} with use_execution_witness={use_execution_witness}",
         );
         let subblock_output = self
             .executor
-            .execute_subblock(block_number, ChainVariant::Ethereum, None)
+            .execute_subblock(
+                use_execution_witness,
+                block_number,
+                ChainVariant::Ethereum,
+                None,
+            )
             .await?;
 
         // create subblock and aggregation prover clients

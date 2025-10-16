@@ -60,7 +60,10 @@ impl ProvingFromStartFetcher {
     async fn fetch_block(&self, block_number: u64) -> Result<()> {
         // generate proving inputs of the specified block number
         let start_time = Instant::now();
-        let proving_inputs = self.subblock_executor.generate_inputs(block_number).await?;
+        let proving_inputs = self
+            .subblock_executor
+            .generate_inputs(false, block_number)
+            .await?;
         let data_fetch_milliseconds = start_time.elapsed().as_millis() as u64;
 
         // create a block report

@@ -26,3 +26,10 @@ itertools.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[features]
+# latest-execution-witness feature invokes `debug_executionWitness` RPC method for prove-latest-block API
+# NOTE:
+# `debug_executionWitness` is currently used only when proving the latest blocks. Historical blocks
+# may not be supported due to limited RPC node resources and pruned or missing state data.
+latest-execution-witness = []
