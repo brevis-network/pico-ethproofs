@@ -26,7 +26,7 @@ This document describes how to reproduce the results for proving of blocks on Se
 ### Prerequisites
 
 #### CPU Machine (`pico-ethproofs`)
-- Git installed.
+- `git`, `pkg-config`, `libssl-dev`, `build-essential`, and `protoc` installed.
 - Rust development environment set up.
 - SSH key pair generated for accessing GPU machines.
 
@@ -79,7 +79,7 @@ wget https://pico-proofs.s3.us-west-2.amazonaws.com/ethproofs-rel-20251015/pico-
 
 **Note:** The aggregator Docker image is only needed on the aggregator machine, and the subblock worker Docker image is only needed on the subblock machines.
 
-### 2.4 Prepare Performance Data Files
+### 2.4 Copy Required Program Files
 
 Copy the three files from the `data` folder in this repository to the same directory on all GPU machines (1 aggregator machine + 7 subblock machines):
 
@@ -87,7 +87,10 @@ Copy the three files from the `data` folder in this repository to the same direc
 - `subblock-elf`
 - `vk_digest.bin`
 
-**Important:** Place all three files in the same directory. The path to this directory will be configured in the `config.yaml` file under the `paths.perf_data_dir` setting.
+**Important:** 
+- All three files must be placed in the same directory on each GPU machine.
+- The directory path must be identical across all machines (e.g., `/home/ubuntu/brevis/data` on all machines).
+- This directory path will be specified in `config.yaml` under the `paths.perf_data_dir` setting.
 
 ### 2.5 Configure SSH Access
 
@@ -139,7 +142,7 @@ Edit `config.yaml` to configure your multi-machine setup. Most fields can be lef
      final_aggregator_client_addr: "http://192.168.1.10:50051"  # CHANGE THIS to match your aggregator IP
      
      # Proof service configuration (points to CPU machine where pico-ethproofs server runs)
-     proof_service_addr: "http://192.168.1.1:58888"  # CHANGE THIS to your CPU machine IP and port
+     proof_service_addr: "http://192.168.1.1:50052"  # CHANGE THIS to your CPU machine IP and port
    ```
 
 2. **Worker Machine Configuration** (7 workers required)
@@ -313,7 +316,7 @@ All containers should show status: `RUNNING`
 
 ---
 
-## 5. Download Subblock Data
+## 5. Download and Decompress Subblock Data
 
 On the CPU machine:
 
@@ -323,7 +326,7 @@ mkdir -p /home/ubuntu/subblocks-20250901
 cd /home/ubuntu/subblocks-20250901
 ```
 
-**Note:** Ensure you have sufficient disk space available.
+**Note:** We recommend 1TB of disk space available.
 
 2. Download all block inputs:
 ```bash
@@ -355,6 +358,11 @@ wget https://pico-proofs.s3.us-west-2.amazonaws.com/subblocks-20250901/23271000%
 wget https://pico-proofs.s3.us-west-2.amazonaws.com/subblocks-20250901/23271300%2B100.tar.gz
 wget https://pico-proofs.s3.us-west-2.amazonaws.com/subblocks-20250901/23271400%2B330.tar.gz
 wget https://pico-proofs.s3.us-west-2.amazonaws.com/subblocks-20250901/23271730%2B35.tar.gz
+```
+
+3. Decompress all downloaded files:
+```bash
+ls *.tar.gz | xargs -P"$(nproc)" -I{} bash -c 'echo "Extracting {}" && tar xzf "{}"'
 ```
 
 ---
