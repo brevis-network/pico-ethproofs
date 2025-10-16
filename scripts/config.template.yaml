@@ -24,7 +24,7 @@ aggregator:
   final_aggregator_client_addr: "http://192.168.1.10:50051" # CHANGE THIS - Final aggregator address for workers to connect to
   
   # Proof service configuration
-  proof_service_addr: "http://localhost:58888"              # CHANGE THIS - Proof service address for aggregator to connect to
+  proof_service_addr: "http://localhost:50052"              # CHANGE THIS - Proof service address for aggregator to connect to
 
 # =============================================================================
 # WORKER CONFIGURATION
