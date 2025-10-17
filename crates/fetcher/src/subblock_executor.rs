@@ -66,14 +66,11 @@ impl SubblockExecutor {
             &subblock_public_values,
         );
 
-        let subblock_public_values = bincode::serialize(&subblock_public_values)
-            .expect("subblock-executor: failed to serialize subblock public values");
-
         let proving_inputs = ProvingInputs::new(
             block_number,
-            subblock_public_values,
             agg_input,
             subblock_inputs,
+            subblock_public_values,
         );
 
         if let Some(dir) = &self.config.input_dump_dir {

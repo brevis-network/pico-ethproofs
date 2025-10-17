@@ -21,4 +21,9 @@ message ProveSubblockRequest {
 
   // bincode serialized stdin builder: subblock_stdin_builder_INDEX.bin
   bytes input = 4;
+
+  // bincode serialized start deferred digest of this subblock index
+  // for deserialization its original type is [KoalaBear; 8]
+  // it's [KoalaBear::ZERO; 8] when the subblock index is 0
+  bytes start_deferred_digest = 5;
 }

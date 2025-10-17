@@ -1573,6 +1573,7 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "derive_more 2.0.1",
  "reqwest",
  "serde",
@@ -4629,7 +4630,7 @@ dependencies = [
 [[package]]
 name = "pico-derive"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#d5a3fef2f55f39ecdeb1d936ffb82fac3d9e3bb3"
+source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#633d17bec8ccdf7f889fd11c2991074c1554805e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4639,7 +4640,7 @@ dependencies = [
 [[package]]
 name = "pico-patch-libs"
 version = "1.1.6"
-source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#d5a3fef2f55f39ecdeb1d936ffb82fac3d9e3bb3"
+source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#633d17bec8ccdf7f889fd11c2991074c1554805e"
 dependencies = [
  "bincode",
  "serde",
@@ -4648,7 +4649,7 @@ dependencies = [
 [[package]]
 name = "pico-sdk"
 version = "1.1.6"
-source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#d5a3fef2f55f39ecdeb1d936ffb82fac3d9e3bb3"
+source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#633d17bec8ccdf7f889fd11c2991074c1554805e"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4674,7 +4675,7 @@ dependencies = [
 [[package]]
 name = "pico-vm"
 version = "1.1.6"
-source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#d5a3fef2f55f39ecdeb1d936ffb82fac3d9e3bb3"
+source = "git+https://github.com/brevis-network/pico.git?branch=pico-subblock#633d17bec8ccdf7f889fd11c2991074c1554805e"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -5029,7 +5030,9 @@ dependencies = [
  "derive_more 2.0.1",
  "itertools 0.13.0",
  "messages",
+ "pico-sdk",
  "reqwest",
+ "sha2 0.10.9",
  "subblock-proto",
  "tokio",
  "tokio-util",
@@ -5133,7 +5136,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.0",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
