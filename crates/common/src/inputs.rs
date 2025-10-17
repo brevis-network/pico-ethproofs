@@ -11,14 +11,15 @@ pub struct ProvingInputs {
     // block number to prove
     pub block_number: u64,
 
-    // bincode serialized subblock public values
-    pub subblock_public_values: Vec<u8>,
-
     // bincode serialized aggregation stdin builder
     pub agg_input: Vec<u8>,
 
     // bincode serialized multiple subblock stdin builders
     pub subblock_inputs: Vec<Vec<u8>>,
+
+    // subblock public values
+    // it must have the same size as the subblock inputs
+    pub subblock_public_values: Vec<Vec<u8>>,
 }
 
 impl ProvingInputs {
@@ -29,7 +30,8 @@ impl ProvingInputs {
 
         // save the subblock public values
         let file_path = dir.join("public_values.bin");
-        fs::write(file_path, &self.subblock_public_values)?;
+        let subblock_public_values = bincode::serialize(&self.subblock_public_values)?;
+        fs::write(file_path, subblock_public_values)?;
 
         // save the aggregator input
         let file_path = dir.join("final_aggregator_stdin_builder.bin");
@@ -54,6 +56,7 @@ impl ProvingInputs {
         // save the subblock public values
         let file_path = dir.join("public_values.bin");
         let subblock_public_values = fs::read(file_path)?;
+        let subblock_public_values = bincode::deserialize(&subblock_public_values)?;
 
         // save the aggregator input
         let file_path = dir.join("final_aggregator_stdin_builder.bin");

@@ -1,10 +1,11 @@
 use crate::config::ProvingClientConfig;
 use aggregator_proto::{ProveAggregationRequest, aggregator_client::AggregatorClient};
 use common::inputs::ProvingInputs;
-use derive_more::Constructor;
 use itertools::Itertools;
 use messages::{BlockMsg, BlockMsgEndpoint};
-use std::{collections::VecDeque, sync::Arc};
+use pico_sdk::{DIGEST_SIZE, FieldAlgebra, ZkField, hash_deferred_proof};
+use sha2::{Digest, Sha256};
+use std::{array, collections::VecDeque, fs, sync::Arc};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{
     process::Command,
@@ -31,16 +32,37 @@ const MAX_PROVING_REQUEST_RETRIES: u32 = 50;
 // retry interval for proving request attempts (in seconds)
 const PROVING_REQUEST_RETRY_INTERVAL_SECONDS: u64 = 10;
 
-#[derive(Constructor, Debug)]
+#[derive(Debug)]
 pub struct ProvingClient {
     // proving client configuration
     config: ProvingClientConfig,
 
     // communication endpoint for coordinating with the main scheduler
     comm_endpoint: Arc<BlockMsgEndpoint>,
+
+    // subblock verification key digest
+    subblock_vk_digest: [ZkField; DIGEST_SIZE],
 }
 
 impl ProvingClient {
+    pub fn new(config: ProvingClientConfig, comm_endpoint: Arc<BlockMsgEndpoint>) -> Self {
+        // read and deserialize subblock vk digest
+        let vk_digest_bytes = fs::read(&config.subblock_vk_digest_path)
+            .expect("proving-client: failed to read subblock vk digest");
+        let subblock_vk_digest: [u32; DIGEST_SIZE] = bincode::deserialize(&vk_digest_bytes)
+            .expect("proving-client: failed to deserialize subblock vk digest");
+
+        // convert the subblock vk digest to ZK fields
+        let subblock_vk_digest: [ZkField; DIGEST_SIZE] =
+            array::from_fn(|i| ZkField::from_canonical_u32(subblock_vk_digest[i]));
+
+        Self {
+            config,
+            comm_endpoint,
+            subblock_vk_digest,
+        }
+    }
+
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
         info!("proving-client: start");
 
@@ -85,6 +107,7 @@ impl ProvingClient {
                                 proving_msg.proving_inputs.clone(),
                                 &mut agg_client,
                                 &mut subblock_clients,
+                                &self.subblock_vk_digest,
                             )
                             .await;
 
@@ -137,6 +160,7 @@ impl ProvingClient {
                                 proving_msg.proving_inputs.clone(),
                                 &mut agg_client,
                                 &mut subblock_clients,
+                                &self.subblock_vk_digest,
                             )
                             .await;
 
@@ -212,6 +236,7 @@ impl ProvingClient {
                                     inputs.clone(),
                                     &mut agg_client,
                                     &mut subblock_clients,
+                                    &self.subblock_vk_digest,
                                 )
                                 .await;
                                 info!(
@@ -342,6 +367,7 @@ async fn send_proving_inputs(
     proving_inputs: ProvingInputs,
     agg_client: &mut AggregatorClient<Channel>,
     subblock_clients: &mut [SubblockClient<Channel>],
+    vk_digest: &[ZkField; DIGEST_SIZE],
 ) {
     let block_number = proving_inputs.block_number;
     let num_subblocks = proving_inputs.subblock_inputs.len();
@@ -353,23 +379,77 @@ async fn send_proving_inputs(
     );
     let num_subblocks = num_subblocks as u32;
 
-    // TODO: check if this could be changed to run futures in parallel
+    // TRICKY: aggregator service needs the all subblock services ready, even if the subblock
+    // inputs are insufficient
+    let mut subblock_inputs = proving_inputs.subblock_inputs;
+    let mut subblock_public_values = proving_inputs.subblock_public_values;
+    assert_eq!(
+        subblock_inputs.len(),
+        subblock_public_values.len(),
+        "proving-client: both subblock inputs and public values must have the same size",
+    );
+    if subblock_inputs.len() < subblock_client_len {
+        // fill the default subblock input
+        let default_input = subblock_inputs[0].clone();
+        subblock_inputs.resize(subblock_client_len, default_input);
+
+        // fill the default subblock public values
+        let default_subblock_public_values = subblock_public_values[0].clone();
+        subblock_public_values.resize(subblock_client_len, default_subblock_public_values);
+    }
+
+    // send the subblock inputs
+    let mut acc_digest = [ZkField::ZERO; DIGEST_SIZE];
+    for (i, ((client, input), subblock_public_values)) in subblock_clients
+        .iter_mut()
+        .zip_eq(subblock_inputs.into_iter())
+        .zip_eq(subblock_public_values.into_iter())
+        .enumerate()
+    {
+        info!("proving-client: requesting with the {i}-th subblock input of block {block_number}");
+        let start_deferred_digest = bincode::serialize(&acc_digest)
+            .expect("proving-client: failed to serialize start deferred digest");
+        let req = ProveSubblockRequest {
+            block_number,
+            num_subblocks,
+            subblock_index: i as u32,
+            input,
+            start_deferred_digest,
+        };
+        send_subblock_request(client, req).await;
+
+        // compute the accumulated deferred digest
+        let pv_digest = Sha256::digest(subblock_public_values);
+        let pv_digest: [ZkField; 32] =
+            array::from_fn(|i| ZkField::from_canonical_u32(pv_digest[i] as u32));
+        acc_digest = hash_deferred_proof::<ZkField>(&acc_digest, vk_digest, &pv_digest);
+    }
+
+    // send the aggregator input
     info!("proving-client: requesting with the aggregator input of block {block_number}");
+    let final_deferred_digest = bincode::serialize(&acc_digest)
+        .expect("proving-client: failed to serialize final deferred digest");
     let req = ProveAggregationRequest {
         block_number,
         num_subblocks,
-        subblock_public_values: proving_inputs.subblock_public_values,
         input: proving_inputs.agg_input,
+        final_deferred_digest,
     };
+    send_aggregator_request(agg_client, req).await;
+}
 
-    // Retry logic for aggregator request
+// send a aggregator request
+async fn send_aggregator_request(
+    agg_client: &mut AggregatorClient<Channel>,
+    request: ProveAggregationRequest,
+) {
     let mut retry_count = 0;
     loop {
-        match agg_client.prove_aggregation(req.clone()).await {
+        match agg_client.prove_aggregation(request.clone()).await {
             Ok(_) => {
                 if retry_count > 0 {
                     info!(
-                        "proving-client: aggregator request succeeded after {retry_count} retries"
+                        "proving-client: aggregator request succeeded after {retry_count} retries",
                     );
                 }
                 break;
@@ -378,72 +458,53 @@ async fn send_proving_inputs(
                 retry_count += 1;
                 if retry_count > MAX_PROVING_REQUEST_RETRIES {
                     error!(
-                        "proving-client: failed to request with the aggregator input after {MAX_PROVING_REQUEST_RETRIES} retries: {e}"
+                        "proving-client: failed to request with the aggregator input after {MAX_PROVING_REQUEST_RETRIES} retries {e}",
                     );
-                    panic!("proving-client: failed to request with the aggregator input: {e}");
+                    panic!("proving-client: failed to request with the aggregator input {e}");
                 }
                 warn!(
-                    "proving-client: aggregator request failed (attempt {retry_count}/{MAX_PROVING_REQUEST_RETRIES}): {e}"
+                    "proving-client: aggregator request failed (attempt {retry_count}/{MAX_PROVING_REQUEST_RETRIES}) {e}",
                 );
                 warn!(
                     "proving-client: retrying in {}s",
-                    PROVING_REQUEST_RETRY_INTERVAL_SECONDS
+                    PROVING_REQUEST_RETRY_INTERVAL_SECONDS,
                 );
                 sleep(Duration::from_secs(PROVING_REQUEST_RETRY_INTERVAL_SECONDS)).await;
             }
         }
     }
+}
 
-    // TRICKY: aggregator service needs the all subblock services ready, even if the subblock
-    // inputs are insufficient
-    let mut subblock_inputs = proving_inputs.subblock_inputs;
-    if subblock_inputs.len() < subblock_client_len {
-        let default_input = subblock_inputs[0].clone();
-        subblock_inputs.resize(subblock_client_len, default_input);
-    }
-
-    for (i, (client, input)) in subblock_clients
-        .iter_mut()
-        .zip_eq(subblock_inputs.into_iter())
-        .enumerate()
-    {
-        info!("proving-client: requesting with the {i}-th subblock input of block {block_number}");
-        let req = ProveSubblockRequest {
-            block_number,
-            num_subblocks,
-            subblock_index: i as u32,
-            input,
-        };
-
-        // Retry logic for subblock request
-        let mut retry_count = 0;
-        loop {
-            match client.prove_subblock(req.clone()).await {
-                Ok(_) => {
-                    if retry_count > 0 {
-                        info!(
-                            "proving-client: subblock {i} request succeeded after {retry_count} retries"
-                        );
-                    }
-                    break;
+// send a subblock request
+async fn send_subblock_request(
+    subblock_client: &mut SubblockClient<Channel>,
+    request: ProveSubblockRequest,
+) {
+    let mut retry_count = 0;
+    loop {
+        match subblock_client.prove_subblock(request.clone()).await {
+            Ok(_) => {
+                if retry_count > 0 {
+                    info!("proving-client: subblock request succeeded after {retry_count} retries",);
                 }
-                Err(e) => {
-                    retry_count += 1;
-                    if retry_count > MAX_PROVING_REQUEST_RETRIES {
-                        error!(
-                            "proving-client: failed to request with the subblock {i} input after {MAX_PROVING_REQUEST_RETRIES} retries: {e}"
-                        );
-                        panic!("proving-client: failed to request with the subblock input: {e}");
-                    }
-                    warn!(
-                        "proving-client: subblock {i} request failed (attempt {retry_count}/{MAX_PROVING_REQUEST_RETRIES}): {e}"
+                break;
+            }
+            Err(e) => {
+                retry_count += 1;
+                if retry_count > MAX_PROVING_REQUEST_RETRIES {
+                    error!(
+                        "proving-client: failed to request with the subblock input after {MAX_PROVING_REQUEST_RETRIES} retries {e}",
                     );
-                    warn!(
-                        "proving-client: retrying in {}s",
-                        PROVING_REQUEST_RETRY_INTERVAL_SECONDS
-                    );
-                    sleep(Duration::from_secs(PROVING_REQUEST_RETRY_INTERVAL_SECONDS)).await;
+                    panic!("proving-client: failed to request with the subblock input {e}");
                 }
+                warn!(
+                    "proving-client: subblock request failed (attempt {retry_count}/{MAX_PROVING_REQUEST_RETRIES}) {e}",
+                );
+                warn!(
+                    "proving-client: retrying in {}s",
+                    PROVING_REQUEST_RETRY_INTERVAL_SECONDS,
+                );
+                sleep(Duration::from_secs(PROVING_REQUEST_RETRY_INTERVAL_SECONDS)).await;
             }
         }
     }

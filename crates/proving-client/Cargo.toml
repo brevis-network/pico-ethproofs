@@ -11,12 +11,16 @@ common.workspace = true
 messages.workspace = true
 subblock-proto.workspace = true
 
+# pico
+pico-sdk.workspace = true
+
 # misc
 bincode.workspace = true
 derive_more.workspace = true
 itertools.workspace = true
 reqwest.workspace = true
-tokio.workspace = true
+sha2.workspace = true
 tokio-util.workspace = true
+tokio.workspace = true
 tonic.workspace = true
 tracing.workspace = true

@@ -54,6 +54,14 @@ struct Args {
 
     #[clap(
         long,
+        env = "SUBBLOCK_VK_DIGEST_PATH",
+        default_value = "data/vk_digest.bin",
+        help = "File path of serialized subblock verification key digest"
+    )]
+    subblock_vk_digest_path: PathBuf,
+
+    #[clap(
+        long,
         env = "SUBBLOCK_ELF_PATH",
         default_value = "data/subblock-elf",
         help = "Subblock ELF file path"
@@ -246,6 +254,7 @@ fn init_proving_client(args: &Args) -> (Arc<ProvingClient>, Arc<BlockMsgEndpoint
         args.proving_subblock_urls
             .clone()
             .expect("eth-proofs: must set `proving_subblock_urls` or enable `is_mock_proving`"),
+        args.subblock_vk_digest_path.clone(),
     );
     let proving_client = ProvingClient::new(config, comm_channel.endpoint1()).into();
 

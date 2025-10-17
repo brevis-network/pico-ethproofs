@@ -16,9 +16,10 @@ message ProveAggregationRequest {
   // total number of subblocks
   uint32 num_subblocks = 2;
 
-  // bincode serialized subblock public values (original type: Vec<Vec<u8>>)
-  bytes subblock_public_values = 3;
-
   // bincode serialized stdin builder: final_aggregator_stdin_builder.bin
-  bytes input = 4;
+  bytes input = 3;
+
+  // bincode serialized final deferred digest used to verify with subblocks
+  // for deserialization its original type is [KoalaBear; 8]
+  bytes final_deferred_digest = 4;
 }
