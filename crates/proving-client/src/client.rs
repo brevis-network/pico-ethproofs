@@ -418,11 +418,14 @@ async fn send_proving_inputs(
         };
         send_subblock_request(client, req).await;
 
-        // compute the accumulated deferred digest
-        let pv_digest = Sha256::digest(subblock_public_values);
-        let pv_digest: [ZkField; 32] =
-            array::from_fn(|i| ZkField::from_canonical_u32(pv_digest[i] as u32));
-        acc_digest = hash_deferred_proof::<ZkField>(&acc_digest, vk_digest, &pv_digest);
+        // only accumulate deferred digest for the real subblocks
+        if num_subblocks > i as u32 {
+            // compute the accumulated deferred digest
+            let pv_digest = Sha256::digest(subblock_public_values);
+            let pv_digest: [ZkField; 32] =
+                array::from_fn(|i| ZkField::from_canonical_u32(pv_digest[i] as u32));
+            acc_digest = hash_deferred_proof::<ZkField>(&acc_digest, vk_digest, &pv_digest);
+        }
     }
 
     // send the aggregator input
