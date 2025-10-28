@@ -6091,7 +6091,7 @@ dependencies = [
 [[package]]
 name = "rsp-client-executor"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=debug-execution-witness#7f43b85e4dc6d9a976f98299bf24a1bca4c136f2"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6129,7 +6129,7 @@ dependencies = [
 [[package]]
 name = "rsp-host-executor"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=debug-execution-witness#7f43b85e4dc6d9a976f98299bf24a1bca4c136f2"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -6165,7 +6165,7 @@ dependencies = [
 [[package]]
 name = "rsp-mpt"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=debug-execution-witness#7f43b85e4dc6d9a976f98299bf24a1bca4c136f2"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -6183,7 +6183,7 @@ dependencies = [
 [[package]]
 name = "rsp-primitives"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=debug-execution-witness#7f43b85e4dc6d9a976f98299bf24a1bca4c136f2"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6199,7 +6199,7 @@ dependencies = [
 [[package]]
 name = "rsp-rpc-db"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=debug-execution-witness#7f43b85e4dc6d9a976f98299bf24a1bca4c136f2"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
 dependencies = [
  "alloy-consensus",
  "alloy-network-primitives",
