@@ -61,6 +61,7 @@ The server wires up **Fetch Service**, **Proof Service**, **Fetcher**, **Proving
 | `--input-load-dir` | path | – | Base dir to **load** inputs for **reproduction** (can be same as dump dir). |
 | `RPC_HTTP_URL` / `--rpc-http-url` | url | – | Ethereum RPC **HTTP** URL. |
 | `RPC_WS_URL` / `--rpc-ws-url` | url | – | Ethereum RPC **WebSocket** URL. |
+| `SUBBLOCK_VK_DIGEST_PATH` / `--subblock-vk-digest-path` | path | `data/vk_digest.bin` | Subblock verification key digest file path. |
 | `SUBBLOCK_ELF_PATH` / `--subblock-elf-path` | path | `data/subblock-elf` | Subblock ELF path. |
 | `AGG_ELF_PATH` / `--agg-elf-path` | path | `data/aggregator-elf` | Aggregator ELF path. |
 | `FETCH_SERVICE_ADDR` / `--fetch-service-addr` | addr | `[::]:8080` | Fetch service bind address (HTTP + WS). |
@@ -68,6 +69,10 @@ The server wires up **Fetch Service**, **Proof Service**, **Fetcher**, **Proving
 | `MAX_GRPC_MSG_BYTES` / `--max-grpc-msg-bytes` | usize | `1073741824` | Max gRPC message size. |
 | `PROVING_AGG_URL` / `--proving-agg-url` | url | – | Aggregator proving gRPC URL (required unless `--is-mock-proving`). |
 | `PROVING_SUBBLOCK_URLS` / `--proving-subblock-urls` | csv urls | – | Comma‑separated Subblock proving gRPC URLs (required unless `--is-mock-proving`). |
+| `--report-to-eth-proofs` | bool | `false` | Identify if should report the block proving status to eth-proofs; eth-proofs api-url, api-token and cluster-id must be set if enabled. |
+| `ETH_PROOFS_API_URL` / `--eth-proofs-api-url` | url | - | eth-proofs API URL to report the block proving status. |
+| `ETH_PROOFS_API_TOKEN` / `--eth-proofs-api-token` | string | - | eth-proofs API token for invoking eth-proofs APIs. |
+| `ETH_PROOFS_CLUSTER_ID` / `--eth-proofs-cluster-id` | u64 | - | eth-proofs APP cluster ID used as an eth-proofs API argument. |
 
 **HTTP/WS endpoints (Fetch Service, default `:8080`)**
 - HTTP: `http://127.0.0.1:8080`

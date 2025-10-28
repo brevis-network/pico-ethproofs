@@ -3,7 +3,7 @@ use aggregator_proto::{ProveAggregationRequest, aggregator_client::AggregatorCli
 use common::inputs::ProvingInputs;
 use derive_more::Constructor;
 use itertools::Itertools;
-use messages::{BlockMsg, BlockMsgEndpoint};
+use messages::{BlockMsg, BlockMsgEndpoint, HookMsg};
 use std::{collections::VecDeque, sync::Arc};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{
@@ -80,6 +80,15 @@ impl ProvingClient {
                 match msg {
                     Ok(Ok(BlockMsg::Proving(proving_msg))) => {
                         if proving_block_report.is_none() {
+                            let block_number = proving_msg.proving_inputs.block_number;
+                            info!(
+                                "proving-client: send the prove-start hook message of block {block_number}",
+                            );
+                            let msg = BlockMsg::Hook(HookMsg::ProveStart { block_number });
+                            self.comm_endpoint
+                                .send(msg)
+                                .expect("proving-client: failed to send prove-start hook message");
+
                             // send the proving inputs to aggregator and subblock grpc services
                             send_proving_inputs(
                                 proving_msg.proving_inputs.clone(),
@@ -115,11 +124,24 @@ impl ProvingClient {
 
                         // merge the proved result to the block report
                         if proved_msg.success {
-                            report.on_proving_success(
-                                proved_msg.cycles,
-                                proved_msg.proving_milliseconds,
-                                proved_msg.proof.unwrap(),
+                            let cycles = proved_msg.cycles;
+                            let proving_milliseconds = proved_msg.proving_milliseconds;
+                            let proof = Arc::new(proved_msg.proof.unwrap());
+
+                            info!(
+                                "proving-client: send the prove-end hook message of block {block_number}",
                             );
+                            let msg = BlockMsg::Hook(HookMsg::ProveEnd {
+                                block_number,
+                                cycles,
+                                proving_milliseconds,
+                                proof: proof.clone(),
+                            });
+                            self.comm_endpoint
+                                .send(msg)
+                                .expect("proving-client: failed to send prove-end hook message");
+
+                            report.on_proving_success(cycles, proving_milliseconds, proof);
                         } else {
                             report.on_proving_failure();
                         }
@@ -132,6 +154,15 @@ impl ProvingClient {
 
                         // process the next pending block
                         if let Some(proving_msg) = pending_msgs.pop_front() {
+                            let block_number = proving_msg.proving_inputs.block_number;
+                            info!(
+                                "proving-client: send the prove-start hook message of block {block_number}",
+                            );
+                            let msg = BlockMsg::Hook(HookMsg::ProveStart { block_number });
+                            self.comm_endpoint
+                                .send(msg)
+                                .expect("proving-client: failed to send prove-start hook message");
+
                             // send the proving inputs to aggregator and subblock grpc services
                             send_proving_inputs(
                                 proving_msg.proving_inputs.clone(),

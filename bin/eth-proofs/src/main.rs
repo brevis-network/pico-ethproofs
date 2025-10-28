@@ -5,9 +5,11 @@ use common::{
     logger::setup_logger,
 };
 use dotenvy::dotenv;
+use eth_proofs_api::config::EthProofsAPIConfig;
 use fetch_service::{config::FetchServiceConfig, service::FetchService};
 use fetcher::{config::BlockFetcherConfig, fetcher::BlockFetcher};
 use futures::future::join_all;
+use hook_handler::{config::HookHandlerConfig, handler::HookHandler};
 use messages::{BlockMsgEndpoint, BlockMsgReceiver, BlockMsgSender};
 use proof_service::{config::ProofServiceConfig, service::ProofService};
 use proving_client::{client::ProvingClient, config::ProvingClientConfig};
@@ -23,14 +25,14 @@ struct Args {
     #[clap(
         long,
         default_value = "false",
-        help = "identify if enable mock proving service (only used for testing)"
+        help = "Identify if enable mock proving service (only used for testing)"
     )]
     is_mock_proving: bool,
 
     #[clap(
         long,
         default_value = "false",
-        help = "identify if should check the generated inputs by emulation"
+        help = "Identify if should check the generated inputs by emulation"
     )]
     is_input_emulated: bool,
 
@@ -69,6 +71,14 @@ struct Args {
         help = "RPC node HTTP URL supports `debug_executionWitness` method; required when latest-execution-witness feature is enabled"
     )]
     rpc_debug_url: Option<Url>,
+
+    #[clap(
+        long,
+        env = "SUBBLOCK_VK_DIGEST_PATH",
+        default_value = "data/vk_digest.bin",
+        help = "Subblock verification key digest file path"
+    )]
+    subblock_vk_digest_path: PathBuf,
 
     #[clap(
         long,
@@ -124,6 +134,34 @@ struct Args {
         help = "Subbblock proving GRPC URLs separated by comma, e.g. `http://172.1.1.1:50052,http://172.2.2.2:50052`"
     )]
     pub proving_subblock_urls: Option<Vec<Url>>,
+
+    #[clap(
+        long,
+        default_value = "false",
+        help = "Identify if should report the block proving status to eth-proofs; eth-proofs api-url, api-token and cluster-id must be set if enabled"
+    )]
+    report_to_eth_proofs: bool,
+
+    #[clap(
+        long,
+        env = "ETH_PROOFS_API_URL",
+        help = "eth-proofs API URL to report the block proving status; it must be set if report-to-eth-proofs is enabled"
+    )]
+    eth_proofs_api_url: Option<Url>,
+
+    #[clap(
+        long,
+        env = "ETH_PROOFS_API_TOKEN",
+        help = "eth-proofs API token for invoking eth-proofs APIs; it must be set if report-to-eth-proofs is enabled"
+    )]
+    eth_proofs_api_token: Option<String>,
+
+    #[clap(
+        long,
+        env = "ETH_PROOFS_CLUSTER_ID",
+        help = "eth-proofs APP cluster ID used as an eth-proofs API argument; it must be set if report-to-eth-proofs is enabled"
+    )]
+    eth_proofs_cluster_id: Option<u64>,
 }
 
 #[tokio::main]
@@ -159,6 +197,9 @@ async fn main() -> Result<()> {
     // initialize reporter thread
     let (reporter, reporter_sender) = init_reporter(&args);
 
+    // initialize proving hook handler thread
+    let (hook_handler, hook_handler_sender) = init_hook_handler(&args);
+
     // initialize main scheduler
     let scheduler = Arc::new(Scheduler::new(
         fetch_service_receiver,
@@ -166,10 +207,14 @@ async fn main() -> Result<()> {
         fetcher_endpoint,
         proving_client_endpoint,
         reporter_sender,
+        hook_handler_sender,
     ));
 
     // start scheduler
     handles.push(scheduler.run());
+
+    // start the proving hook handler thread
+    handles.push(hook_handler.run());
 
     // start the reporter thread
     handles.push(reporter.run());
@@ -280,4 +325,30 @@ fn init_reporter(_args: &Args) -> (Arc<BlockReporter>, Arc<BlockMsgSender>) {
     let reporter = BlockReporter::new(comm_channel.receiver()).into();
 
     (reporter, comm_channel.sender())
+}
+
+// initialize proving hook handler thread
+fn init_hook_handler(args: &Args) -> (Arc<HookHandler>, Arc<BlockMsgSender>) {
+    // create communication channel
+    let comm_channel = SingleUnboundedChannel::default();
+
+    // create hook handler instance
+    let eth_proofs_config = args.report_to_eth_proofs.then(|| {
+        EthProofsAPIConfig::new(
+            args.eth_proofs_api_url.clone().expect(
+                "eth-proofs: must set eth-proofs-api-url if report-to-eth-proofs is enabled",
+            ),
+            args.eth_proofs_api_token.clone().expect(
+                "eth-proofs: must set eth-proofs-api-token if report-to-eth-proofs is enabled",
+            ),
+            args.eth_proofs_cluster_id.expect(
+                "eth-proofs: must set eth-proofs-cluster-id if report-to-eth-proofs is enabled",
+            ),
+            args.subblock_vk_digest_path.clone(),
+        )
+    });
+    let config = HookHandlerConfig::new(eth_proofs_config);
+    let hook_handler = HookHandler::new(config, comm_channel.receiver()).into();
+
+    (hook_handler, comm_channel.sender())
 }

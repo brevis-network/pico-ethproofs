@@ -33,6 +33,9 @@ pub struct Scheduler {
 
     // sending the block reports to the reporter thread
     reporter_sender: Arc<BlockMsgSender>,
+
+    // sending the block proving statuses to the hook handler thread
+    hook_handler_sender: Arc<BlockMsgSender>,
 }
 
 impl Scheduler {
@@ -44,6 +47,7 @@ impl Scheduler {
         let fetcher_endpoint = self.fetcher_endpoint.clone();
         let proving_client_endpoint = self.proving_client_endpoint.clone();
         let report_sender = self.reporter_sender.clone();
+        let hook_handler_sender = self.hook_handler_sender.clone();
 
         spawn(async move {
             let mut fetch_service_receiver = fetch_service_receiver.lock().await;
@@ -81,6 +85,9 @@ impl Scheduler {
                             BlockMsg::Proving(_) => {
                                 proving_client_endpoint.send(msg).expect("scheduler: failed to send a proving message to proving-client thread");
                             }
+                            BlockMsg::Hook(_) => {
+                                hook_handler_sender.send(msg).expect("scheduler: failed to send a proving status message to hook-handler thread");
+                            }
                             _ => {
                                 error!("scheduler: received a wrong message from fetcher thread {msg:?}");
                             }
@@ -91,6 +98,9 @@ impl Scheduler {
                         match msg {
                             BlockMsg::Report(_) => {
                                 report_sender.send(msg).expect("scheduler: failed to send a report message to reporter thread");
+                            }
+                            BlockMsg::Hook(_) => {
+                                hook_handler_sender.send(msg).expect("scheduler: failed to send a proving status message to hook-handler thread");
                             }
                             _ => {
                                 error!("scheduler: received a wrong message from proving-client thread {msg:?}");

@@ -1,0 +1,15 @@
+[package]
+name = "hook-handler"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+
+[dependencies]
+# members
+eth-proofs-api.workspace = true
+messages.workspace = true
+
+# misc
+derive_more.workspace = true
+tokio.workspace = true
+tracing.workspace = true
