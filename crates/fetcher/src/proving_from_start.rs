@@ -2,7 +2,7 @@ use crate::subblock_executor::SubblockExecutor;
 use anyhow::Result;
 use common::report::BlockProvingReport;
 use derive_more::Constructor;
-use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver, ProvingMsg};
+use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver, HookMsg, ProvingMsg};
 use std::{sync::Arc, time::Instant};
 use tokio::{spawn, sync::Mutex, task::JoinHandle};
 use tracing::{error, info};
@@ -14,7 +14,7 @@ pub struct ProvingFromStartFetcher {
     // receiving fetch messages
     fetch_receiver: Arc<Mutex<FetchMsgReceiver>>,
 
-    // sending proving messages to the proving-client thread
+    // sending proving and hook messages to the main scheduler thread
     proving_sender: Arc<BlockMsgSender>,
 
     // executor for generating subblock and aggregation inputs
@@ -58,6 +58,10 @@ impl ProvingFromStartFetcher {
 
     // fetch a specified block by number
     async fn fetch_block(&self, block_number: u64) -> Result<()> {
+        // send the fetch start hook message
+        let msg = BlockMsg::Hook(HookMsg::FetchStart { block_number });
+        self.proving_sender.send(msg)?;
+
         // generate proving inputs of the specified block number
         let start_time = Instant::now();
         let proving_inputs = self
@@ -71,6 +75,10 @@ impl ProvingFromStartFetcher {
 
         // send the proving message
         let msg = BlockMsg::Proving(ProvingMsg::new(fetch_report, proving_inputs));
+        self.proving_sender.send(msg)?;
+
+        // send the fetch end hook message
+        let msg = BlockMsg::Hook(HookMsg::FetchEnd { block_number });
         self.proving_sender.send(msg)?;
 
         Ok(())

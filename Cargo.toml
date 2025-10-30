@@ -15,6 +15,8 @@ members = [
   "crates/aggregator-proto",    # grpc protocol for sending aggregation input to proving cluster
   "crates/proof-service",       # grpc service for proof return from proving cluster
   "crates/proof-proto",         # grpc protocol for proof return from proving cluster
+  "crates/hook-handler",        # handle block proving status; send to eth-proofs when enables `eth-proofs-hook` feature
+  "crates/eth-proofs-api",      # eth-proofs API utility functions
 ]
 resolver = "2"
 
@@ -38,6 +40,8 @@ subblock-proto = { path = "crates/subblock-proto" }
 aggregator-proto = { path = "crates/aggregator-proto" }
 proof-service = { path = "crates/proof-service" }
 proof-proto = { path = "crates/proof-proto" }
+hook-handler = { path = "crates/hook-handler" }
+eth-proofs-api = { path = "crates/eth-proofs-api" }
 
 # pico
 pico-sdk = { git = "https://github.com/brevis-network/pico.git", branch = "pico-subblock" }
@@ -53,6 +57,7 @@ rsp-host-executor = { git = "https://github.com/brevis-network/pico-subblock", b
 alloy-provider = { version = "1.0", features = ["reqwest", "reqwest-rustls-tls", "ws"] }
 anyhow = "1.0"
 axum = { version = "0.8", features = ["ws"] }
+base64 = "0.22"
 bincode = "1.3.3"
 clap = { version = "4.5", features = ["derive", "env"] }
 dashmap = "6.1"
@@ -60,13 +65,17 @@ derive_more = { version = "2.0", features = ["constructor"] }
 dotenvy = "0.15"
 futures = "0.3"
 futures-util = "0.3"
+hex = "0.4"
 itertools = "0.13"
 prost = "0.13"
 reqwest = "0.12"
+reqwest-middleware = { version = "0.4", features = ["json"] }
+reqwest-retry = "0.7"
 serde = { version = "=1.0.219", features = ["derive", "rc"] }
+serde_json = "1.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "signal", "process"] }
-tokio-util = "0.7"
 tokio-tungstenite = "0.28"
+tokio-util = "0.7"
 tonic = { version = "0.13", features = ["zstd"] }
 tonic-build = { version = "0.13", features = ["prost"] }
 tonic-web = "0.13"

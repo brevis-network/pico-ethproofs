@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license-file.workspace = true
 
+# pico-ethproofs main service entrypoint
 [[bin]]
 name = "eth-proofs"
 path = "src/main.rs"
@@ -11,8 +12,10 @@ path = "src/main.rs"
 [dependencies]
 # members
 common.workspace = true
+eth-proofs-api.workspace = true
 fetch-service.workspace = true
 fetcher.workspace = true
+hook-handler.workspace = true
 messages.workspace = true
 proof-service.workspace = true
 proving-client.workspace = true

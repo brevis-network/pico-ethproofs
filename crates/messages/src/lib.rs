@@ -11,6 +11,16 @@ use std::sync::Arc;
 // default value of `count` parameter
 const DEFAULT_PARAM_COUNT: u64 = 1;
 
+pub type ProvedMsg = CompleteProvingRequest;
+pub type ReportMsg = BlockProvingReport;
+
+pub type BlockMsgSender = UnboundedSender<BlockMsg>;
+pub type BlockMsgReceiver = UnboundedReceiver<BlockMsg>;
+pub type BlockMsgEndpoint = DuplexUnboundedEndpoint<BlockMsg, BlockMsg>;
+
+pub type FetchMsgSender = UnboundedSender<FetchMsg>;
+pub type FetchMsgReceiver = UnboundedReceiver<FetchMsg>;
+
 // block message transmitted between multiple threads
 #[derive(Clone, Debug)]
 pub enum BlockMsg {
@@ -28,6 +38,10 @@ pub enum BlockMsg {
 
     // block report message
     Report(ReportMsg),
+
+    // proving step callback message
+    // report status to eth-proofs if `eth-proofs-hook` feature is enabled
+    Hook(HookMsg),
 }
 
 impl From<ProveBlockByNumberParams> for BlockMsg {
@@ -92,12 +106,39 @@ pub struct ProvingMsg {
     pub proving_inputs: ProvingInputs,
 }
 
-pub type ProvedMsg = CompleteProvingRequest;
-pub type ReportMsg = BlockProvingReport;
+// proving step callback message
+#[derive(Clone, Debug)]
+pub enum HookMsg {
+    // block fetching start callback
+    FetchStart {
+        // block number
+        block_number: u64,
+    },
 
-pub type BlockMsgSender = UnboundedSender<BlockMsg>;
-pub type BlockMsgReceiver = UnboundedReceiver<BlockMsg>;
-pub type BlockMsgEndpoint = DuplexUnboundedEndpoint<BlockMsg, BlockMsg>;
+    // block fetching end callback
+    FetchEnd {
+        // block number
+        block_number: u64,
+    },
 
-pub type FetchMsgSender = UnboundedSender<FetchMsg>;
-pub type FetchMsgReceiver = UnboundedReceiver<FetchMsg>;
+    // block proving start callback
+    ProveStart {
+        // block number
+        block_number: u64,
+    },
+
+    // block proving end callback
+    ProveEnd {
+        // block number
+        block_number: u64,
+
+        // emulation cycles
+        cycles: u64,
+
+        // milliseconds of proving time
+        proving_milliseconds: u64,
+
+        // bincode serialized proof bytes
+        proof: Arc<Vec<u8>>,
+    },
+}
