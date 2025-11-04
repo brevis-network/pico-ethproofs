@@ -20,3 +20,8 @@ tokio.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true
 tracing.workspace = true
+
+[features]
+# skip-pending-on-retry feature skips pending blocks during retry attempts
+# this is useful when proving the latest blocks if a block failed to prove and triggered a retry
+skip-pending-on-retry = []

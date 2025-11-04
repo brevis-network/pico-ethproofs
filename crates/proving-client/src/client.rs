@@ -182,11 +182,10 @@ impl ProvingClient {
                         }
                     }
                     Err(_) => {
-                        if let Some(_report) = &proving_block_report {
-                            let block_number = _report.block_number;
-                            warn!("proving-client: proving timeout for block {block_number}");
+                        if let Some(report) = &proving_block_report {
+                            let block_number = report.block_number;
                             warn!(
-                                "proving-client: attempting to restart docker containers and retry"
+                                "proving-client: proving timeout for block {block_number}, attempting to restart docker containers and retry",
                             );
 
                             // Step 1: Restart docker containers using the retry script
@@ -227,6 +226,9 @@ impl ProvingClient {
                                 DOCKER_RETRY_WAIT_SECONDS
                             );
                             sleep(Duration::from_secs(DOCKER_RETRY_WAIT_SECONDS)).await;
+
+                            #[cfg(feature = "skip-pending-on-retry")]
+                            pending_msgs.clear();
 
                             // Step 3: Reinitialize aggregator and subblock clients
                             info!("proving-client: reinitializing aggregator and subblock clients");

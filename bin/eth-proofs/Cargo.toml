@@ -37,3 +37,6 @@ tokio.workspace = true
 # `debug_executionWitness` is currently used only when proving the latest blocks. Historical blocks
 # may not be supported due to limited RPC node resources and pruned or missing state data.
 latest-execution-witness = ["fetcher/latest-execution-witness"]
+# skip-pending-on-retry feature skips pending blocks during retry attempts
+# this is useful when proving the latest blocks if a block failed to prove and triggered a retry
+skip-pending-on-retry = ["proving-client/skip-pending-on-retry"]
