@@ -3,7 +3,10 @@ use anyhow::Result;
 use common::report::BlockProvingReport;
 use derive_more::Constructor;
 use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver, HookMsg, ProvingMsg};
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::{spawn, sync::Mutex, task::JoinHandle};
 use tracing::{error, info};
 
@@ -63,15 +66,22 @@ impl ProvingFromStartFetcher {
         self.proving_sender.send(msg)?;
 
         // generate proving inputs of the specified block number
-        let start_time = Instant::now();
+        let start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
         let proving_inputs = self
             .subblock_executor
             .generate_inputs(false, block_number)
             .await?;
-        let data_fetch_milliseconds = start_time.elapsed().as_millis() as u64;
+        let end_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
 
         // create a block report
-        let fetch_report = BlockProvingReport::new(block_number, data_fetch_milliseconds);
+        let fetch_report =
+            BlockProvingReport::new(block_number, 0, end_time - start_time, start_time, end_time);
 
         // send the proving message
         let msg = BlockMsg::Proving(ProvingMsg::new(fetch_report, proving_inputs));

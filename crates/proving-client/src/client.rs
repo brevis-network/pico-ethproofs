@@ -4,7 +4,11 @@ use common::inputs::ProvingInputs;
 use derive_more::Constructor;
 use itertools::Itertools;
 use messages::{BlockMsg, BlockMsgEndpoint, HookMsg};
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use subblock_proto::{ProveSubblockRequest, subblock_client::SubblockClient};
 use tokio::{
     process::Command,
@@ -69,6 +73,8 @@ impl ProvingClient {
             let mut last_proving_inputs: Option<ProvingInputs> = None;
             // queue for saving the pending messages when a block is proving
             let mut pending_msgs = VecDeque::new();
+            // variable for saving the block proving start timestamp
+            let mut start_timestamps = HashMap::new();
             loop {
                 // try to receive a proving or proved message with a timeout
                 let msg = timeout(
@@ -90,6 +96,11 @@ impl ProvingClient {
                                 .expect("proving-client: failed to send prove-start hook message");
 
                             // send the proving inputs to aggregator and subblock grpc services
+                            let start_time = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis() as u64;
+                            start_timestamps.insert(block_number, start_time);
                             send_proving_inputs(
                                 proving_msg.proving_inputs.clone(),
                                 &mut agg_client,
@@ -123,6 +134,9 @@ impl ProvingClient {
                         );
 
                         // merge the proved result to the block report
+                        let start_time = start_timestamps.remove(&block_number).expect(
+                            "proving-client: should have the proving block start time when proved",
+                        );
                         if proved_msg.success {
                             let cycles = proved_msg.cycles;
                             let proving_milliseconds = proved_msg.proving_milliseconds;
@@ -141,7 +155,17 @@ impl ProvingClient {
                                 .send(msg)
                                 .expect("proving-client: failed to send prove-end hook message");
 
-                            report.on_proving_success(cycles, proving_milliseconds, proof);
+                            let end_time = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis() as u64;
+                            report.on_proving_success(
+                                cycles,
+                                proving_milliseconds,
+                                start_time,
+                                end_time,
+                                proof,
+                            );
                         } else {
                             report.on_proving_failure();
                         }
@@ -164,6 +188,11 @@ impl ProvingClient {
                                 .expect("proving-client: failed to send prove-start hook message");
 
                             // send the proving inputs to aggregator and subblock grpc services
+                            let start_time = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis() as u64;
+                            start_timestamps.insert(block_number, start_time);
                             send_proving_inputs(
                                 proving_msg.proving_inputs.clone(),
                                 &mut agg_client,

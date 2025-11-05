@@ -18,6 +18,7 @@ rsp-host-executor.workspace = true
 
 # misc
 alloy-provider.workspace = true
+alloy-rpc-types.workspace = true
 anyhow.workspace = true
 bincode.workspace = true
 derive_more.workspace = true

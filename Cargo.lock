@@ -447,6 +447,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d4fe522f6fc749c8afce721bdc8f73b715d317c3c02fcb9b51f7a143e4401dd"
 dependencies = [
  "alloy-primitives",
+ "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
  "alloy-serde",
  "serde",
@@ -487,6 +488,8 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "derive_more 2.0.1",
+ "jsonwebtoken",
+ "rand 0.8.5",
  "serde",
  "strum 0.27.2",
 ]
@@ -2452,6 +2455,7 @@ name = "fetcher"
 version = "0.1.0"
 dependencies = [
  "alloy-provider",
+ "alloy-rpc-types",
  "anyhow",
  "bincode",
  "common",
@@ -3084,7 +3088,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.0",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -3406,6 +3410,21 @@ checksum = "ec48937a97411dcb524a265206ccd4c90bb711fca92b2792c407f268825b9305"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "jsonwebtoken"
+version = "9.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
+dependencies = [
+ "base64 0.22.1",
+ "js-sys",
+ "pem",
+ "ring",
+ "serde",
+ "serde_json",
+ "simple_asn1",
 ]
 
 [[package]]
@@ -4640,6 +4659,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "pem"
+version = "3.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38af38e8470ac9dee3ce1bae1af9c1671fffc44ddfd8bd1d0a3445bf349a8ef3"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+]
+
+[[package]]
 name = "pem-rfc7468"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5195,7 +5224,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "socket2 0.6.0",
+ "socket2 0.5.10",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -5232,7 +5261,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.0",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -6219,7 +6248,7 @@ dependencies = [
 [[package]]
 name = "rsp-client-executor"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#e141d3e196ad6b54a8485976faf5c7c99cf78457"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6257,7 +6286,7 @@ dependencies = [
 [[package]]
 name = "rsp-host-executor"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#e141d3e196ad6b54a8485976faf5c7c99cf78457"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -6293,7 +6322,7 @@ dependencies = [
 [[package]]
 name = "rsp-mpt"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#e141d3e196ad6b54a8485976faf5c7c99cf78457"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -6311,7 +6340,7 @@ dependencies = [
 [[package]]
 name = "rsp-primitives"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#e141d3e196ad6b54a8485976faf5c7c99cf78457"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6327,7 +6356,7 @@ dependencies = [
 [[package]]
 name = "rsp-rpc-db"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#da90e7916a5eb810076aa196349dc6c802e7c8b5"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#e141d3e196ad6b54a8485976faf5c7c99cf78457"
 dependencies = [
  "alloy-consensus",
  "alloy-network-primitives",
@@ -6905,6 +6934,18 @@ name = "simdutf8"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
+name = "simple_asn1"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "297f631f50729c8c99b84667867963997ec0b50f32b2a7dbcab828ef0541e8bb"
+dependencies = [
+ "num-bigint 0.4.6",
+ "num-traits",
+ "thiserror 2.0.17",
+ "time",
+]
 
 [[package]]
 name = "siphasher"
