@@ -117,7 +117,12 @@ impl BlockProvingReport {
             )?;
         }
 
-        let total_secs = self.proving_end_timestamp as f64 / 1000.0 - self.block_timestamp as f64;
+        let total_secs = if self.block_timestamp == 0 {
+            // set to 0 if no block timestamp
+            0.0
+        } else {
+            self.proving_end_timestamp as f64 / 1000.0 - self.block_timestamp as f64
+        };
         let return_proving_secs = self.proving_milliseconds as f64 / 1000.0;
         let whole_proving_secs =
             (self.proving_end_timestamp - self.proving_start_timestamp) as f64 / 1000.0;
@@ -126,8 +131,12 @@ impl BlockProvingReport {
             (self.fetch_end_timestamp - self.fetch_start_timestamp) as f64 / 1000.0;
         let running_secs =
             (self.proving_end_timestamp - self.fetch_start_timestamp) as f64 / 1000.0;
-        let fetch_interval =
-            self.fetch_start_timestamp as f64 / 1000.0 - self.block_timestamp as f64;
+        let fetch_interval = if self.block_timestamp == 0 {
+            // set to 0 if no block timestamp
+            0.0
+        } else {
+            self.fetch_start_timestamp as f64 / 1000.0 - self.block_timestamp as f64
+        };
         let proving_interval =
             (self.proving_start_timestamp - self.fetch_end_timestamp) as f64 / 1000.0;
 
