@@ -35,6 +35,7 @@ impl ProvingFromStartFetcher {
                     FetchMsg::ProveFromStart {
                         start_block_number,
                         count,
+                        is_latest_block,
                     } => {
                         info!(
                             "proving-from-start-fetcher: received from-start fetch message of start_block_number = {start_block_number}, count = {count}",
@@ -43,7 +44,7 @@ impl ProvingFromStartFetcher {
                             info!(
                                 "proving-from-start-fetcher: starting for fetching block {block_number}"
                             );
-                            if let Err(e) = self.fetch_block(block_number).await {
+                            if let Err(e) = self.fetch_block(is_latest_block, block_number).await {
                                 error!(
                                     "proving-from-start-fetcher: failed to fetch block-{block_number} {e:?}",
                                 );
@@ -60,7 +61,7 @@ impl ProvingFromStartFetcher {
     }
 
     // fetch a specified block by number
-    async fn fetch_block(&self, block_number: u64) -> Result<()> {
+    async fn fetch_block(&self, is_latest_block: bool, block_number: u64) -> Result<()> {
         // send the fetch start hook message
         let msg = BlockMsg::Hook(HookMsg::FetchStart { block_number });
         self.proving_sender.send(msg)?;
@@ -72,7 +73,7 @@ impl ProvingFromStartFetcher {
             .as_millis() as u64;
         let proving_inputs = self
             .subblock_executor
-            .generate_inputs(false, block_number)
+            .generate_inputs(is_latest_block, block_number)
             .await?;
         let end_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)

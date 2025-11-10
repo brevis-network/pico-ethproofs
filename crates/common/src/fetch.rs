@@ -28,6 +28,10 @@ pub struct ProveBlockByNumberParams {
 
     // specifies the number of blocks to prove
     pub count: Option<u64>,
+
+    // specifies whether they're latest blocks
+    // optimization could be applied when fetching the latest blocks
+    pub latest: Option<bool>,
 }
 
 impl ProveBlockByNumberParams {
@@ -38,6 +42,9 @@ impl ProveBlockByNumberParams {
         params.insert("start_block_num", self.start_block_num);
         if let Some(count) = self.count {
             params.insert("count", count);
+        }
+        if let Some(latest) = self.latest {
+            params.insert("latest", if latest { 1 } else { 0 });
         }
 
         params
