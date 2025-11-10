@@ -1,11 +1,15 @@
 use crate::{config::BlockFetcherConfig, subblock_executor::SubblockExecutor};
 use alloy_provider::{Provider, ProviderBuilder, WsConnect};
+use alloy_rpc_types::Header;
 use anyhow::Result;
 use common::report::BlockProvingReport;
 use derive_more::Constructor;
 use futures::StreamExt;
 use messages::{BlockMsg, BlockMsgSender, FetchMsg, FetchMsgReceiver, HookMsg, ProvingMsg};
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::{select, spawn, sync::Mutex, task::JoinHandle};
 use tracing::{error, info};
 
@@ -81,7 +85,7 @@ impl ProvingLatestFetcher {
                             info!(
                                 "proving-latest-fetcher: fetching block {block_number}",
                             );
-                            if let Err(e) = self.fetch_block(block_number).await {
+                            if let Err(e) = self.fetch_block(header).await {
                                 error!(
                                     "proving-latest-fetcher: failed to fetch block {block_number} {e:?}",
                                 );
@@ -100,21 +104,36 @@ impl ProvingLatestFetcher {
     }
 
     // fetch a specified block by number
-    async fn fetch_block(&self, block_number: u64) -> Result<()> {
+    async fn fetch_block(&self, header: Header) -> Result<()> {
+        let block_number = header.number;
+        let block_timestamp = header.timestamp;
+
         // send the fetch start hook message
         let msg = BlockMsg::Hook(HookMsg::FetchStart { block_number });
         self.proving_sender.send(msg)?;
 
         // generate proving inputs of the specified block number
-        let start_time = Instant::now();
+        let start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
         let proving_inputs = self
             .subblock_executor
             .generate_inputs(true, block_number)
             .await?;
-        let data_fetch_milliseconds = start_time.elapsed().as_millis() as u64;
+        let end_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
 
         // create a block report
-        let fetch_report = BlockProvingReport::new(block_number, data_fetch_milliseconds);
+        let fetch_report = BlockProvingReport::new(
+            block_number,
+            block_timestamp,
+            end_time - start_time,
+            start_time,
+            end_time,
+        );
 
         // send the proving message
         let msg = BlockMsg::Proving(ProvingMsg::new(fetch_report, proving_inputs));

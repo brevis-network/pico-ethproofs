@@ -55,6 +55,7 @@ rsp-host-executor = { git = "https://github.com/brevis-network/pico-subblock", b
 
 # misc
 alloy-provider = { version = "1.0", features = ["reqwest", "reqwest-rustls-tls", "ws"] }
+alloy-rpc-types = { version = "1.0", features = ["eth"] }
 anyhow = "1.0"
 axum = { version = "0.8", features = ["ws"] }
 base64 = "0.22"

@@ -1,7 +1,10 @@
 use crate::config::HookHandlerConfig;
 use eth_proofs_api::client::EthProofsClient;
 use messages::{BlockMsg, BlockMsgReceiver, HookMsg};
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::{spawn, sync::Mutex, task::JoinHandle};
 use tracing::{error, info};
 
@@ -74,6 +77,14 @@ impl HookHandler {
                                 client
                                     .proved(block_number, cycles, proving_milliseconds, &proof)
                                     .await;
+
+                                info!(
+                                    "hook-handler: finished notifying block {block_number} proved to eth-proofs timestamp {}",
+                                    SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis(),
+                                );
                             }
                         }
                     },
