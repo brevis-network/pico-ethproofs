@@ -49,6 +49,7 @@ impl From<ProveBlockByNumberParams> for BlockMsg {
         let fetch_msg = FetchMsg::ProveFromStart {
             start_block_number: params.start_block_num,
             count: params.count.unwrap_or(DEFAULT_PARAM_COUNT),
+            is_latest_block: params.latest.unwrap_or(false),
         };
 
         Self::Fetch(fetch_msg)
@@ -87,13 +88,23 @@ pub struct WatchMsg {
 #[derive(Clone, Debug)]
 pub enum FetchMsg {
     // fetch number of blocks starting from a specified block number
-    ProveFromStart { start_block_number: u64, count: u64 },
+    // fetch as a latest block if the `is_latest_block` flag is set
+    ProveFromStart {
+        start_block_number: u64,
+        count: u64,
+        is_latest_block: bool,
+    },
 
     // fetch number of latest blocks
-    ProveLatest { count: u64 },
+    ProveLatest {
+        count: u64,
+    },
 
     // reproduce number of blocks starting from a specified block number
-    ReproduceFromStart { start_block_number: u64, count: u64 },
+    ReproduceFromStart {
+        start_block_number: u64,
+        count: u64,
+    },
 }
 
 // proving request message

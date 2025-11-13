@@ -28,16 +28,23 @@ pub struct ProveBlockByNumberParams {
 
     // specifies the number of blocks to prove
     pub count: Option<u64>,
+
+    // specifies whether they're latest blocks
+    // optimization could be applied when fetching the latest blocks
+    pub latest: Option<bool>,
 }
 
 impl ProveBlockByNumberParams {
     // convert to hash map
-    pub fn to_hash_map(&self) -> HashMap<&'static str, u64> {
+    pub fn to_hash_map(&self) -> HashMap<&'static str, String> {
         let mut params = HashMap::new();
 
-        params.insert("start_block_num", self.start_block_num);
+        params.insert("start_block_num", self.start_block_num.to_string());
         if let Some(count) = self.count {
-            params.insert("count", count);
+            params.insert("count", count.to_string());
+        }
+        if let Some(latest) = self.latest {
+            params.insert("latest", latest.to_string());
         }
 
         params
@@ -53,11 +60,11 @@ pub struct ProveLatestBlockParams {
 
 impl ProveLatestBlockParams {
     // convert to hash map
-    pub fn to_hash_map(&self) -> HashMap<&'static str, u64> {
+    pub fn to_hash_map(&self) -> HashMap<&'static str, String> {
         let mut params = HashMap::new();
 
         if let Some(count) = self.count {
-            params.insert("count", count);
+            params.insert("count", count.to_string());
         }
 
         params
@@ -76,12 +83,12 @@ pub struct ReproduceBlockByNumberParams {
 
 impl ReproduceBlockByNumberParams {
     // convert to hash map
-    pub fn to_hash_map(&self) -> HashMap<&'static str, u64> {
+    pub fn to_hash_map(&self) -> HashMap<&'static str, String> {
         let mut params = HashMap::new();
 
-        params.insert("start_block_num", self.start_block_num);
+        params.insert("start_block_num", self.start_block_num.to_string());
         if let Some(count) = self.count {
-            params.insert("count", count);
+            params.insert("count", count.to_string());
         }
 
         params

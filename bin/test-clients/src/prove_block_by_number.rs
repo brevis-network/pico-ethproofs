@@ -14,6 +14,9 @@ struct Args {
     #[clap(long, default_value = "1", help = "Number of requested blocks")]
     pub count: u64,
 
+    #[clap(long, default_value = "false", help = "Whether they're latest blocks")]
+    pub latest: bool,
+
     #[clap(
         long,
         default_value = "proving_report.csv",
@@ -48,7 +51,8 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     // send a http request for proving a block by the block number
-    let params = ProveBlockByNumberParams::new(args.start_block_num, Some(args.count));
+    let params =
+        ProveBlockByNumberParams::new(args.start_block_num, Some(args.count), Some(args.latest));
     prove_block_by_number(&args.http_url, &params).await?;
 
     // wait for the proving result by a websocket connection
