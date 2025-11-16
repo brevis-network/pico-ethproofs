@@ -21,7 +21,7 @@ use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{error, info, warn};
 
 // maximum waiting time for proving complete
-const MAX_PROVING_WAITING_SECONDS: u64 = 30;
+const MAX_PROVING_WAITING_SECONDS: u64 = 120;
 
 // wait time after docker retry before reinitializing clients (in seconds)
 const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
