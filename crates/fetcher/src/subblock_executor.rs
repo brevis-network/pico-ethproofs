@@ -44,7 +44,7 @@ impl SubblockExecutor {
                 use_execution_witness,
                 block_number,
                 ChainVariant::Ethereum,
-                None,
+                self.config.input_dump_dir.clone(),
             )
             .await?;
 
