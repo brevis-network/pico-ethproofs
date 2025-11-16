@@ -21,7 +21,7 @@ use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{error, info, warn};
 
 // maximum waiting time for proving complete
-const MAX_PROVING_WAITING_SECONDS: u64 = 120;
+const MAX_PROVING_WAITING_SECONDS: u64 = 30;
 
 // wait time after docker retry before reinitializing clients (in seconds)
 const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
@@ -122,6 +122,12 @@ impl ProvingClient {
                                         "proving-client: resending proving inputs for block {}",
                                         block_number
                                     );
+                                    let start_time = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis()
+                                        as u64;
+                                    start_timestamps.insert(block_number, start_time);
                                     send_proving_inputs(
                                         inputs.clone(),
                                         &mut agg_client,
@@ -278,6 +284,12 @@ impl ProvingClient {
                                     "proving-client: resending proving inputs for block {}",
                                     block_number
                                 );
+                                let start_time = SystemTime::now()
+                                    .duration_since(UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_millis()
+                                    as u64;
+                                start_timestamps.insert(block_number, start_time);
                                 send_proving_inputs(
                                     inputs.clone(),
                                     &mut agg_client,
