@@ -287,6 +287,7 @@ fn init_fetcher(args: &Args) -> (Arc<BlockFetcher>, Arc<BlockMsgEndpoint>) {
         args.basic_rpc_http_url.clone(),
         args.debug_rpc_http_url.clone(),
         args.rpc_ws_url.clone(),
+        args.subblock_vk_digest_path.clone(),
         args.subblock_elf_path.clone(),
         args.agg_elf_path.clone(),
     )
