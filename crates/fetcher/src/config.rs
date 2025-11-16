@@ -26,6 +26,9 @@ pub struct BlockFetcherConfig {
     // websocket url of rpc node
     pub rpc_ws_url: Url,
 
+    // subblock verification key digest file path
+    pub subblock_vk_digest_path: PathBuf,
+
     // subblock elf file path
     pub subblock_elf_path: PathBuf,
 
