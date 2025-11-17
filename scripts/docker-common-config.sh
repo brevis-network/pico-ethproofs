@@ -52,19 +52,24 @@ load_yaml_config() {
         if command -v yq &> /dev/null 2>&1; then
             # Create workers array from YAML with NUMA settings
             local workers_data
-            workers_data=$(yq eval '.workers[] | 
-                .host + " " + 
-                .user + " " + 
-                (.port | tostring) + " " + 
-                .worker_id + " " + 
-                (.index | tostring) + " " + 
-                .remote_dir + " " + 
-                (.numa.cpuset_cpus // .numa.cpuset_cpus // $global_cpus) + " " + 
-                (.numa.cpuset_mems // .numa.cpuset_mems // $global_mems)' \
-                --arg global_cpus "$GLOBAL_CPUSET_CPUS" \
-                --arg global_mems "$GLOBAL_CPUSET_MEMS" \
+
+            # Export variables for yq (compatible with older yq versions)
+            export YQ_GLOBAL_CPUS="$GLOBAL_CPUSET_CPUS"
+            export YQ_GLOBAL_MEMS="$GLOBAL_CPUSET_MEMS"
+
+            workers_data=$(yq eval '.workers[] |
+                .host + " " +
+                .user + " " +
+                (.port | tostring) + " " +
+                .worker_id + " " +
+                (.index | tostring) + " " +
+                .remote_dir + " " +
+                (.numa.cpuset_cpus // env(YQ_GLOBAL_CPUS)) + " " +
+                (.numa.cpuset_mems // env(YQ_GLOBAL_MEMS))' \
                 "$config_file" 2>/dev/null)
-            
+
+            unset YQ_GLOBAL_CPUS YQ_GLOBAL_MEMS
+
             if [[ -n "$workers_data" ]]; then
                 # Convert to array
                 WORKERS=()
@@ -106,6 +111,11 @@ init_config() {
     AGG_CPUSET_MEMS="${AGG_CPUSET_MEMS:-$GLOBAL_CPUSET_MEMS}"
 
     # --- Worker Configuration ---
+    # Ensure WORKERS array is defined to avoid issues with set -u
+    if [[ -z "${WORKERS+x}" ]]; then
+        WORKERS=()
+    fi
+
     if [[ ${#WORKERS[@]} -eq 0 ]]; then
         WORKERS=(
             "192.168.1.11 ubuntu 22 worker1 0 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
