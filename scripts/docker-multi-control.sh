@@ -168,7 +168,7 @@ EOF
     case "$mode" in
         all|workers)
             for worker_spec in "${WORKERS[@]}"; do
-                read -r host user port wid idx remote_dir <<< "$worker_spec"
+                read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
                 log "Removing worker image on ${user}@${host} (worker $wid)..."
                 remove_image_with_dependencies "$host" "$user" "$port" "$CONTAINER_NAME_WORKER" "$IMAGE_NAME_WORKER" || true
                 apply_worker_delay
@@ -269,7 +269,7 @@ cmd_save_logs() {
     
     # Save worker logs
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-manual-${timestamp}.log"
         save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
     done

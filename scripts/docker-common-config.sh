@@ -27,8 +27,8 @@ load_yaml_config() {
             "export CONTAINER_CACHE_MOUNT=\"" + .paths.container_cache_mount + "\"",
             "export LOGS_DIR=\"" + .paths.logs_dir + "\"",
             "export DOCKER_PREFIX=\"" + .docker.prefix + "\"",
-            "export CPUSET_CPUS=\"" + .numa.cpuset_cpus + "\"",
-            "export CPUSET_MEMS=\"" + .numa.cpuset_mems + "\"",
+            "export GLOBAL_CPUSET_CPUS=\"" + .numa.cpuset_cpus + "\"",
+            "export GLOBAL_CPUSET_MEMS=\"" + .numa.cpuset_mems + "\"",
             "export SSH_CONNECT_TIMEOUT=\"" + (.ssh.connect_timeout | tostring) + "\"",
             "export SSH_CONTROL_PERSIST=\"" + .ssh.control_persist + "\"",
             "export SSH_MAX_RETRIES=\"" + (.ssh.max_retries | tostring) + "\"",
@@ -42,12 +42,34 @@ load_yaml_config() {
             "export LOG_DATE_FORMAT=\"" + .performance.log_date_format + "\""
         ' "$config_file" 2>/dev/null)"
         
-        # Load workers array from YAML
+        # Load aggregator NUMA settings (fallback to global if not specified)
+        AGG_CPUSET_CPUS=$(yq eval '.aggregator.numa.cpuset_cpus // .numa.cpuset_cpus' "$config_file" 2>/dev/null)
+        AGG_CPUSET_MEMS=$(yq eval '.aggregator.numa.cpuset_mems // .numa.cpuset_mems' "$config_file" 2>/dev/null)
+        export AGG_CPUSET_CPUS
+        export AGG_CPUSET_MEMS
+        
+        # Load workers array from YAML with per-worker NUMA settings
         if command -v yq &> /dev/null 2>&1; then
-            # Create workers array from YAML  
+            # Create workers array from YAML with NUMA settings
             local workers_data
-            workers_data=$(yq eval '.workers[] | .host + " " + .user + " " + (.port | tostring) + " " + .worker_id + " " + (.index | tostring) + " " + .remote_dir' "$config_file" 2>/dev/null)
-            
+
+            # Export variables for yq (compatible with older yq versions)
+            export YQ_GLOBAL_CPUS="$GLOBAL_CPUSET_CPUS"
+            export YQ_GLOBAL_MEMS="$GLOBAL_CPUSET_MEMS"
+
+            workers_data=$(yq eval '.workers[] |
+                .host + " " +
+                .user + " " +
+                (.port | tostring) + " " +
+                .worker_id + " " +
+                (.index | tostring) + " " +
+                .remote_dir + " " +
+                (.numa.cpuset_cpus // env(YQ_GLOBAL_CPUS)) + " " +
+                (.numa.cpuset_mems // env(YQ_GLOBAL_MEMS))' \
+                "$config_file" 2>/dev/null)
+
+            unset YQ_GLOBAL_CPUS YQ_GLOBAL_MEMS
+
             if [[ -n "$workers_data" ]]; then
                 # Convert to array
                 WORKERS=()
@@ -80,16 +102,29 @@ init_config() {
     AGG_PORT="${AGG_PORT:-22}"
     AGG_REMOTE_DIR="${AGG_REMOTE_DIR:-/home/ubuntu/brevis}"
 
+    # --- NUMA Configuration (Global Defaults) ---
+    GLOBAL_CPUSET_CPUS="${GLOBAL_CPUSET_CPUS:-62-123}"
+    GLOBAL_CPUSET_MEMS="${GLOBAL_CPUSET_MEMS:-1}"
+    
+    # Aggregator NUMA (fallback to global)
+    AGG_CPUSET_CPUS="${AGG_CPUSET_CPUS:-$GLOBAL_CPUSET_CPUS}"
+    AGG_CPUSET_MEMS="${AGG_CPUSET_MEMS:-$GLOBAL_CPUSET_MEMS}"
+
     # --- Worker Configuration ---
+    # Ensure WORKERS array is defined to avoid issues with set -u
+    if [[ -z "${WORKERS+x}" ]]; then
+        WORKERS=()
+    fi
+
     if [[ ${#WORKERS[@]} -eq 0 ]]; then
         WORKERS=(
-            "192.168.1.11 ubuntu 22 worker1 0 /home/ubuntu/brevis"
-            "192.168.1.12 ubuntu 22 worker2 1 /home/ubuntu/brevis"
-            "192.168.1.13 ubuntu 22 worker3 2 /home/ubuntu/brevis"
-            "192.168.1.14 ubuntu 22 worker4 3 /home/ubuntu/brevis"
-            "192.168.1.15 ubuntu 22 worker5 4 /home/ubuntu/brevis"
-            "192.168.1.16 ubuntu 22 worker6 5 /home/ubuntu/brevis"
-            "192.168.1.17 ubuntu 22 worker7 6 /home/ubuntu/brevis"
+            "192.168.1.11 ubuntu 22 worker1 0 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
+            "192.168.1.12 ubuntu 22 worker2 1 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
+            "192.168.1.13 ubuntu 22 worker3 2 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
+            "192.168.1.14 ubuntu 22 worker4 3 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
+            "192.168.1.15 ubuntu 22 worker5 4 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
+            "192.168.1.16 ubuntu 22 worker6 5 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
+            "192.168.1.17 ubuntu 22 worker7 6 /home/ubuntu/brevis $GLOBAL_CPUSET_CPUS $GLOBAL_CPUSET_MEMS"
         )
     fi
 
@@ -102,10 +137,6 @@ init_config() {
 
     # --- Docker Configuration ---
     DOCKER_PREFIX="${DOCKER_PREFIX:-sudo docker}"
-
-    # --- NUMA Configuration ---
-    CPUSET_CPUS="${CPUSET_CPUS:-62-123}"
-    CPUSET_MEMS="${CPUSET_MEMS:-1}"
 
     # --- SSH Configuration ---
     SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-30}"

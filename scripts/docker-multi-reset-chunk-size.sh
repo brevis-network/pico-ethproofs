@@ -77,7 +77,7 @@ reset_all_env_files() {
     
     # Update worker envs
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
         reset_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
     done

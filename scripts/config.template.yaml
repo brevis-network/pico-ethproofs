@@ -25,6 +25,11 @@ aggregator:
   
   # Proof service configuration
   proof_service_addr: "http://localhost:50052"              # CHANGE THIS - Proof service address for aggregator to connect to
+  
+  # NUMA configuration for aggregator (optional, uses global numa if not specified)
+  numa:
+    cpuset_cpus: "62-123"                 # CPU cores to use for aggregator
+    cpuset_mems: "1"                      # NUMA memory node for aggregator
 
 # =============================================================================
 # WORKER CONFIGURATION
@@ -32,6 +37,7 @@ aggregator:
 workers:
   # List of worker machines
   # Each worker needs: host, user, port, worker_id, index, remote_dir
+  # Optionally specify numa.cpuset_cpus and numa.cpuset_mems per worker
   # CHANGE ALL THE HOST IPs, PORTS, AND WORKER IDs BELOW TO MATCH YOUR SETUP
   
   - host: "192.168.1.11"            # CHANGE THIS to your worker 1 IP
@@ -40,6 +46,9 @@ workers:
     worker_id: "worker1"             # CHANGE THIS to your worker name
     index: 0
     remote_dir: "/home/ubuntu/brevis"
+    numa:                            # Optional per-worker NUMA configuration
+      cpuset_cpus: "62-123"          # CPU cores to use (uses global numa if not specified)
+      cpuset_mems: "1"               # NUMA memory node (uses global numa if not specified)
     
   - host: "192.168.1.12"            # CHANGE THIS to your worker 2 IP
     user: "ubuntu" 
@@ -47,6 +56,9 @@ workers:
     worker_id: "worker2"             # CHANGE THIS to your worker name
     index: 1
     remote_dir: "/home/ubuntu/brevis"
+    numa:
+      cpuset_cpus: "62-123"
+      cpuset_mems: "1"
     
   - host: "192.168.1.13"            # CHANGE THIS to your worker 3 IP
     user: "ubuntu"
@@ -54,6 +66,9 @@ workers:
     worker_id: "worker3"             # CHANGE THIS to your worker name
     index: 2
     remote_dir: "/home/ubuntu/brevis"
+    numa:
+      cpuset_cpus: "62-123"
+      cpuset_mems: "1"
     
   - host: "192.168.1.14"            # CHANGE THIS to your worker 4 IP
     user: "ubuntu"
@@ -61,6 +76,9 @@ workers:
     worker_id: "worker4"             # CHANGE THIS to your worker name
     index: 3
     remote_dir: "/home/ubuntu/brevis"
+    numa:
+      cpuset_cpus: "62-123"
+      cpuset_mems: "1"
     
   - host: "192.168.1.15"            # CHANGE THIS to your worker 5 IP
     user: "ubuntu"
@@ -68,6 +86,9 @@ workers:
     worker_id: "worker5"             # CHANGE THIS to your worker name
     index: 4
     remote_dir: "/home/ubuntu/brevis"
+    numa:
+      cpuset_cpus: "62-123"
+      cpuset_mems: "1"
     
   - host: "192.168.1.16"            # CHANGE THIS to your worker 6 IP
     user: "ubuntu"
@@ -75,6 +96,9 @@ workers:
     worker_id: "worker6"             # CHANGE THIS to your worker name
     index: 5
     remote_dir: "/home/ubuntu/brevis"
+    numa:
+      cpuset_cpus: "62-123"
+      cpuset_mems: "1"
     
   - host: "192.168.1.17"            # CHANGE THIS to your worker 7 IP
     user: "ubuntu"
@@ -82,6 +106,9 @@ workers:
     worker_id: "worker7"             # CHANGE THIS to your worker name
     index: 6
     remote_dir: "/home/ubuntu/brevis"
+    numa:
+      cpuset_cpus: "62-123"
+      cpuset_mems: "1"
 
 # =============================================================================
 # PATH CONFIGURATION  
@@ -125,13 +152,14 @@ docker:
     worker: ".env.subblock"
 
 # =============================================================================
-# NUMA CONFIGURATION
+# NUMA CONFIGURATION (Global Defaults)
 # =============================================================================
 numa:
-  # NUMA node settings for CPU and memory binding
+  # Default NUMA node settings for CPU and memory binding
+  # These are used when per-machine NUMA settings are not specified
   # Adjust based on your hardware configuration
-  cpuset_cpus: "62-123"           # CPU cores to use (e.g., "0-31" or "62-123")
-  cpuset_mems: "1"                # NUMA memory node (e.g., "0" or "1")
+  cpuset_cpus: "62-123"           # Default CPU cores to use (e.g., "0-31" or "62-123")
+  cpuset_mems: "1"                # Default NUMA memory node (e.g., "0" or "1")
 
 # =============================================================================
 # SSH CONFIGURATION
