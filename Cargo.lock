@@ -6248,7 +6248,7 @@ dependencies = [
 [[package]]
 name = "rsp-client-executor"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#97e339dd98f3cb10a1fd1ab8472b0e4307a56412"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#190d22039884d392345999ebbd50b46c0f7a70eb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6286,7 +6286,7 @@ dependencies = [
 [[package]]
 name = "rsp-host-executor"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#97e339dd98f3cb10a1fd1ab8472b0e4307a56412"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#190d22039884d392345999ebbd50b46c0f7a70eb"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -6322,7 +6322,7 @@ dependencies = [
 [[package]]
 name = "rsp-mpt"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#97e339dd98f3cb10a1fd1ab8472b0e4307a56412"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#190d22039884d392345999ebbd50b46c0f7a70eb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -6340,7 +6340,7 @@ dependencies = [
 [[package]]
 name = "rsp-primitives"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#97e339dd98f3cb10a1fd1ab8472b0e4307a56412"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#190d22039884d392345999ebbd50b46c0f7a70eb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6356,7 +6356,7 @@ dependencies = [
 [[package]]
 name = "rsp-rpc-db"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#97e339dd98f3cb10a1fd1ab8472b0e4307a56412"
+source = "git+https://github.com/brevis-network/pico-subblock?branch=pico-subblock#190d22039884d392345999ebbd50b46c0f7a70eb"
 dependencies = [
  "alloy-consensus",
  "alloy-network-primitives",
