@@ -6,7 +6,7 @@ use itertools::Itertools;
 use pico_sdk::{
     DIGEST_SIZE, EmulatorStdinBuilder, KoalaBearPoseidon2, client::DefaultProverClient,
 };
-use rsp_client_executor::{ChainVariant, io::SubblockHostOutput};
+use rsp_client_executor::{ChainVariant, ClientExecutor, EthereumVariant, io::SubblockHostOutput};
 use rsp_host_executor::HostExecutor;
 use std::{fs, path::PathBuf, sync::Arc, time::Instant};
 use tracing::info;
@@ -214,6 +214,17 @@ fn generate_agg_input(
 
     // emulate the aggregator with generated stdin builder if the flag is specified
     if is_input_emulated {
+        // execute aggregation for validation
+        ClientExecutor
+            .execute_aggregation::<EthereumVariant>(
+                subblock_public_values.clone(),
+                *subblock_vk_digest,
+                subblock_output.agg_input.clone(),
+                subblock_output.agg_input.parent_header().state_root,
+            )
+            .expect("subblock-executor: failed to execute aggregation for validation");
+
+        // emulate for the aggregator input
         let agg_elf = fs::read(agg_elf_path)
             .expect("subblock-executor: failed to read file of aggregator ELF");
         let agg_prover_client = DefaultProverClient::new(&agg_elf);
