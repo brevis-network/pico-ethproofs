@@ -88,7 +88,7 @@ main() {
     log "Aggregator: ${AGG_USER}@${AGG_HOST}"
     log "Workers: ${#WORKERS[@]}"
     log "Docker prefix: $DOCKER_PREFIX"
-    log "NUMA settings: cpus=$CPUSET_CPUS mems=$CPUSET_MEMS"
+    log "NUMA settings: agg_cpus=$AGG_CPUSET_CPUS agg_mems=$AGG_CPUSET_MEMS global_cpus=$GLOBAL_CPUSET_CPUS global_mems=$GLOBAL_CPUSET_MEMS"
     
     # Clean up existing containers if requested
     if [[ "$do_cleanup" == "true" ]]; then
