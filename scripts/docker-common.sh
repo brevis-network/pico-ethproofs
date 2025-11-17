@@ -218,11 +218,11 @@ get_worker() {
     return 1
 }
 
-# Parse worker spec: "HOST USER PORT WORKER_ID INDEX REMOTE_DIR"
+# Parse worker spec: "HOST USER PORT WORKER_ID INDEX REMOTE_DIR CPUSET_CPUS CPUSET_MEMS"
 parse_worker_spec() {
     local spec="$1"
-    read -r host user port wid idx remote_dir <<< "$spec"
-    echo "$host" "$user" "$port" "$wid" "$idx" "$remote_dir"
+    read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$spec"
+    echo "$host" "$user" "$port" "$wid" "$idx" "$remote_dir" "$cpuset_cpus" "$cpuset_mems"
 }
 
 # Build expected workers and indices CSV lists for aggregator configuration
@@ -231,7 +231,7 @@ build_worker_lists() {
     local indices=()
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         worker_ids+=("$wid")
         indices+=("$idx")
     done
@@ -483,6 +483,8 @@ force_kill_all_containers() {
 build_docker_run_opts() {
     local container_name="$1"
     local env_file="$2"
+    local cpuset_cpus="$3"
+    local cpuset_mems="$4"
     
     echo "-d \
         --name $container_name \
@@ -494,8 +496,8 @@ build_docker_run_opts() {
         --env-file $env_file \
         -v ${PERF_DATA_DIR}:${CONTAINER_DATA_MOUNT}:ro \
         -v ${PROGRAM_CACHE_FILE}:${CONTAINER_CACHE_MOUNT}:rw \
-        --cpuset-cpus='${CPUSET_CPUS}' \
-        --cpuset-mems='${CPUSET_MEMS}'"
+        --cpuset-cpus='${cpuset_cpus}' \
+        --cpuset-mems='${cpuset_mems}'"
 }
 
 # =============================================================================
@@ -521,7 +523,7 @@ start_aggregator() {
     
     log "Starting aggregator on ${AGG_USER}@${AGG_HOST}..."
     
-    local docker_opts=$(build_docker_run_opts "$CONTAINER_NAME_AGGREGATOR" "$env_file")
+    local docker_opts=$(build_docker_run_opts "$CONTAINER_NAME_AGGREGATOR" "$env_file" "$AGG_CPUSET_CPUS" "$AGG_CPUSET_MEMS")
     
     ssh_exec "$AGG_USER" "$AGG_HOST" "$AGG_PORT" "cd '$AGG_REMOTE_DIR' && \
         $DOCKER_PREFIX run $docker_opts $IMAGE_NAME_AGGREGATOR"
@@ -640,11 +642,13 @@ start_worker() {
     local port="$3"
     local wid="$4"
     local remote_dir="$5"
-    local env_file="${6:-$ENV_FILE_WORKER}"
+    local cpuset_cpus="$6"
+    local cpuset_mems="$7"
+    local env_file="${8:-$ENV_FILE_WORKER}"
     
     log "Starting worker $wid on ${user}@${host}..."
     
-    local docker_opts=$(build_docker_run_opts "$CONTAINER_NAME_WORKER" "$env_file")
+    local docker_opts=$(build_docker_run_opts "$CONTAINER_NAME_WORKER" "$env_file" "$cpuset_cpus" "$cpuset_mems")
     
     ssh_exec "$user" "$host" "$port" "cd '$remote_dir' && \
         $DOCKER_PREFIX run $docker_opts $IMAGE_NAME_WORKER"
@@ -670,7 +674,7 @@ stop_all_workers() {
     log "Stopping all ${#WORKERS[@]} workers..."
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         stop_worker "$host" "$user" "$port" "$wid" "$save_logs" "$remote_dir"
         apply_worker_delay
     done
@@ -683,8 +687,8 @@ start_all_workers() {
     log "Starting all ${#WORKERS[@]} workers..."
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
-        start_worker "$host" "$user" "$port" "$wid" "$remote_dir"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+        start_worker "$host" "$user" "$port" "$wid" "$remote_dir" "$cpuset_cpus" "$cpuset_mems"
         apply_worker_delay
     done
     
@@ -713,7 +717,7 @@ start_all_workers() {
 # Get status of all worker containers
 get_all_worker_status() {
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         log "Worker $wid status on ${user}@${host}:"
         
         # Step 1: Get running containers
@@ -760,7 +764,7 @@ cleanup_all_workers() {
     log "Cleaning up all ${#WORKERS[@]} workers..."
     
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         cleanup_worker "$host" "$user" "$port" "$wid"
         apply_worker_delay
     done
@@ -786,7 +790,7 @@ force_kill_all_workers() {
     
     local failures=0
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         if ! force_kill_worker "$host" "$user" "$port" "$wid"; then
             ((failures++))
         fi
@@ -868,7 +872,7 @@ verify_all_containers_gone() {
     
     # Check workers
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         if ! is_container_gone "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"; then
             error "Worker $wid container still exists on ${user}@${host}"
             ((failures++))
@@ -920,7 +924,7 @@ init_all_ssh_connections() {
     
     # Establish connections to all workers (in background)
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         establish_ssh_connection "$user" "$host" "$port" &
     done
     
@@ -935,7 +939,7 @@ close_all_ssh_connections() {
     
     # Close worker connections
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         close_ssh_connection "$user" "$host" "$port"
     done
 }

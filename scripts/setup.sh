@@ -309,7 +309,7 @@ check_ssh_connectivity() {
     
     # Check workers
     while IFS= read -r worker_spec; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         if ! check_ssh_host "$host" "$user" "$port" "$verbose"; then
             ((failures++))
         fi
@@ -388,7 +388,7 @@ check_docker_installation() {
     
     # Check workers
     while IFS= read -r worker_spec; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         if ! check_docker_host "$host" "$user" "$docker_prefix" "$port" "$verbose"; then
             ((failures++))
         fi
@@ -461,7 +461,7 @@ check_gpu_availability() {
     
     # Check workers  
     while IFS= read -r worker_spec; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         if ! check_gpu_host "$host" "$user" "$port" "$verbose"; then
             ((failures++))
         fi
@@ -553,7 +553,7 @@ check_required_paths() {
     
     # Check workers
     while IFS= read -r worker_spec; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         if ! check_paths_host "$host" "$user" "$remote_dir" "$perf_data_dir" "$program_cache" "$port" "$verbose"; then
             ((failures++))
         fi
@@ -822,7 +822,7 @@ distribute_env_files() {
     
     # Distribute worker .env files (customized per worker)
     while IFS= read -r worker_spec; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         
         # Create customized worker .env file
         local custom_worker_env="/tmp/.env.subblock.${wid}"
@@ -1012,7 +1012,7 @@ setup_ssh_keys() {
     
     # Copy to workers
     while IFS= read -r worker_spec; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         info "Setting up SSH for worker $wid: ${user}@${host}:${port}"
         local worker_ssh_copy_opts="-o ConnectTimeout=30"
         if [[ "$port" != "22" ]]; then

@@ -216,7 +216,7 @@ deploy_workers() {
     
     # Deploy to each worker
     for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         
         log ""
         log "Deploying to worker $wid..."
@@ -277,7 +277,7 @@ verify_deployment() {
     # Verify workers
     if [[ "$mode" == "all" ]] || [[ "$mode" == "workers" ]]; then
         for worker_spec in "${WORKERS[@]}"; do
-            read -r host user port wid idx remote_dir <<< "$worker_spec"
+            read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
             log "Verifying worker $wid image..."
             if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX images | grep -q '${IMAGE_NAME_WORKER%:*}'"; then
                 log "✓ Worker $wid image verified: $IMAGE_NAME_WORKER"
