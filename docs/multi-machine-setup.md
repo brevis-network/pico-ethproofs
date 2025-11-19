@@ -104,3 +104,50 @@ sudo mv protoc21.12/bin/* /usr/local/bin/
 sudo mv protoc21.12/include/* /usr/local/include/
 protoc --version
 ```
+
+## Install Docker
+
+Follow the official Docker documentation for Ubuntu to install Docker Engine:
+
+[https://docs.docker.com/engine/install/ubuntu/](https://docs.docker.com/engine/install/ubuntu/)
+
+After installing Docker, add your current user to the `docker` group so you can run Docker without `sudo`:
+
+```bash
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+## Enable GPU Support in Docker
+
+To run CUDA workloads inside Docker containers, install the NVIDIA Container Toolkit.
+
+Add the NVIDIA Container Toolkit repository:
+
+```bash  
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+```
+
+Install and configure the NVIDIA Container Toolkit for Docker:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y nvidia-container-toolkit
+
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+### Test Docker GPU Setup
+
+Verify that Docker containers can see the GPUs:
+
+```bash
+docker run --gpus all --rm debian:stretch nvidia-smi
+```
