@@ -20,9 +20,6 @@ use tokio_util::sync::CancellationToken;
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{error, info, warn};
 
-// maximum waiting time for proving complete
-const MAX_PROVING_WAITING_SECONDS: u64 = 120;
-
 // wait time after docker retry before reinitializing clients (in seconds)
 const DOCKER_RETRY_WAIT_SECONDS: u64 = 10;
 
@@ -67,6 +64,12 @@ impl ProvingClient {
             let mut subblock_clients = self.init_subblock_proving_clients(&token).await;
 
             info!("proving-client: waiting for proving and proved messages");
+            let max_proving_waiting_seconds = self.config.proving_timeout_seconds;
+            info!(
+                "proving-client: proving timeout set to {}s",
+                max_proving_waiting_seconds
+            );
+
             // variable for saving the block number proving in progress
             let mut proving_block_report: Option<BlockProvingReport> = None;
             // variable for saving the last proving inputs (for retry on timeout)
@@ -78,7 +81,7 @@ impl ProvingClient {
             loop {
                 // try to receive a proving or proved message with a timeout
                 let msg = timeout(
-                    Duration::from_secs(MAX_PROVING_WAITING_SECONDS),
+                    Duration::from_secs(max_proving_waiting_seconds),
                     self.comm_endpoint.recv(),
                 )
                 .await;
@@ -99,47 +102,77 @@ impl ProvingClient {
                                 .as_millis() as u64;
                             let block_number = report.block_number;
                             if current_time - start_timestamps[&block_number]
-                                >= MAX_PROVING_WAITING_SECONDS * 1000
+                                >= max_proving_waiting_seconds * 1000
                             {
                                 warn!(
                                     "proving-client: proving timeout for block {block_number}, attempting to restart docker containers and retry",
                                 );
-                                restart_proving_clients().await;
 
-                                #[cfg(feature = "skip-pending-on-retry")]
-                                pending_msgs.clear();
+                                #[cfg(feature = "fast-retry")]
+                                {
+                                    restart_proving_clients_fast().await;
 
-                                // re-initialize aggregator and subblock clients
-                                info!(
-                                    "proving-client: reinitializing aggregator and subblock clients"
-                                );
-                                agg_client = self.init_agg_proving_client(&token).await;
-                                subblock_clients = self.init_subblock_proving_clients(&token).await;
-
-                                // re-send the last proving inputs to retry the failed block
-                                if let Some(ref inputs) = last_proving_inputs {
+                                    // re-initialize aggregator and subblock clients
                                     info!(
-                                        "proving-client: resending proving inputs for block {}",
+                                        "proving-client: reinitializing aggregator and subblock clients"
+                                    );
+                                    agg_client = self.init_agg_proving_client(&token).await;
+                                    subblock_clients =
+                                        self.init_subblock_proving_clients(&token).await;
+
+                                    // fast-retry: clear pending messages and skip replay
+                                    pending_msgs.clear();
+                                    start_timestamps.remove(&block_number);
+                                    proving_block_report = None;
+                                    last_proving_inputs = None;
+                                    info!(
+                                        "proving-client: fast retry complete, skipping block {} and resuming from latest",
                                         block_number
                                     );
-                                    let start_time = SystemTime::now()
-                                        .duration_since(UNIX_EPOCH)
-                                        .unwrap()
-                                        .as_millis()
-                                        as u64;
-                                    start_timestamps.insert(block_number, start_time);
-                                    send_proving_inputs(
-                                        inputs.clone(),
-                                        &mut agg_client,
-                                        &mut subblock_clients,
-                                    )
-                                    .await;
+                                }
+
+                                #[cfg(not(feature = "fast-retry"))]
+                                {
+                                    restart_proving_clients().await;
+
+                                    #[cfg(feature = "skip-pending-on-retry")]
+                                    pending_msgs.clear();
+
+                                    // re-initialize aggregator and subblock clients
                                     info!(
-                                        "proving-client: proving inputs resent, continuing to wait for proof"
+                                        "proving-client: reinitializing aggregator and subblock clients"
                                     );
-                                } else {
-                                    error!("proving-client: no proving inputs saved for retry");
-                                    panic!("proving-client: cannot retry without proving inputs");
+                                    agg_client = self.init_agg_proving_client(&token).await;
+                                    subblock_clients =
+                                        self.init_subblock_proving_clients(&token).await;
+
+                                    // re-send the last proving inputs to retry the failed block
+                                    if let Some(ref inputs) = last_proving_inputs {
+                                        info!(
+                                            "proving-client: resending proving inputs for block {}",
+                                            block_number
+                                        );
+                                        let start_time = SystemTime::now()
+                                            .duration_since(UNIX_EPOCH)
+                                            .unwrap()
+                                            .as_millis()
+                                            as u64;
+                                        start_timestamps.insert(block_number, start_time);
+                                        send_proving_inputs(
+                                            inputs.clone(),
+                                            &mut agg_client,
+                                            &mut subblock_clients,
+                                        )
+                                        .await;
+                                        info!(
+                                            "proving-client: proving inputs resent, continuing to wait for proof"
+                                        );
+                                    } else {
+                                        error!("proving-client: no proving inputs saved for retry");
+                                        panic!(
+                                            "proving-client: cannot retry without proving inputs"
+                                        );
+                                    }
                                 }
                             }
                         } else {
@@ -268,40 +301,68 @@ impl ProvingClient {
                             warn!(
                                 "proving-client: proving timeout for block {block_number}, attempting to restart docker containers and retry",
                             );
-                            restart_proving_clients().await;
 
-                            #[cfg(feature = "skip-pending-on-retry")]
-                            pending_msgs.clear();
+                            #[cfg(feature = "fast-retry")]
+                            {
+                                restart_proving_clients_fast().await;
 
-                            // re-initialize aggregator and subblock clients
-                            info!("proving-client: reinitializing aggregator and subblock clients");
-                            agg_client = self.init_agg_proving_client(&token).await;
-                            subblock_clients = self.init_subblock_proving_clients(&token).await;
-
-                            // re-send the last proving inputs to retry the failed block
-                            if let Some(ref inputs) = last_proving_inputs {
+                                // re-initialize aggregator and subblock clients
                                 info!(
-                                    "proving-client: resending proving inputs for block {}",
+                                    "proving-client: reinitializing aggregator and subblock clients"
+                                );
+                                agg_client = self.init_agg_proving_client(&token).await;
+                                subblock_clients = self.init_subblock_proving_clients(&token).await;
+
+                                // fast-retry: clear pending messages and skip replay
+                                pending_msgs.clear();
+                                start_timestamps.remove(&block_number);
+                                proving_block_report = None;
+                                last_proving_inputs = None;
+                                info!(
+                                    "proving-client: fast retry complete, skipping block {} and resuming from latest",
                                     block_number
                                 );
-                                let start_time = SystemTime::now()
-                                    .duration_since(UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_millis()
-                                    as u64;
-                                start_timestamps.insert(block_number, start_time);
-                                send_proving_inputs(
-                                    inputs.clone(),
-                                    &mut agg_client,
-                                    &mut subblock_clients,
-                                )
-                                .await;
+                            }
+
+                            #[cfg(not(feature = "fast-retry"))]
+                            {
+                                restart_proving_clients().await;
+
+                                #[cfg(feature = "skip-pending-on-retry")]
+                                pending_msgs.clear();
+
+                                // re-initialize aggregator and subblock clients
                                 info!(
-                                    "proving-client: proving inputs resent, continuing to wait for proof"
+                                    "proving-client: reinitializing aggregator and subblock clients"
                                 );
-                            } else {
-                                error!("proving-client: no proving inputs saved for retry");
-                                panic!("proving-client: cannot retry without proving inputs");
+                                agg_client = self.init_agg_proving_client(&token).await;
+                                subblock_clients = self.init_subblock_proving_clients(&token).await;
+
+                                // re-send the last proving inputs to retry the failed block
+                                if let Some(ref inputs) = last_proving_inputs {
+                                    info!(
+                                        "proving-client: resending proving inputs for block {}",
+                                        block_number
+                                    );
+                                    let start_time = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis()
+                                        as u64;
+                                    start_timestamps.insert(block_number, start_time);
+                                    send_proving_inputs(
+                                        inputs.clone(),
+                                        &mut agg_client,
+                                        &mut subblock_clients,
+                                    )
+                                    .await;
+                                    info!(
+                                        "proving-client: proving inputs resent, continuing to wait for proof"
+                                    );
+                                } else {
+                                    error!("proving-client: no proving inputs saved for retry");
+                                    panic!("proving-client: cannot retry without proving inputs");
+                                }
                             }
                         }
                     }
@@ -531,7 +592,7 @@ async fn send_proving_inputs(
     }
 }
 
-// restart proving clients
+// restart proving clients (legacy retry with CHUNK_SIZE reduction)
 async fn restart_proving_clients() {
     // restart docker containers using the retry script
     let retry_result = Command::new("./scripts/docker-multi-control.sh")
@@ -569,4 +630,53 @@ async fn restart_proving_clients() {
         DOCKER_RETRY_WAIT_SECONDS
     );
     sleep(Duration::from_secs(DOCKER_RETRY_WAIT_SECONDS)).await;
+}
+
+// fast restart proving clients (no log saving, no CHUNK_SIZE changes)
+#[cfg(feature = "fast-retry")]
+#[allow(dead_code)]
+async fn restart_proving_clients_fast() {
+    // restart docker containers using the fast-retry script
+    let retry_result = Command::new("./scripts/docker-multi-control.sh")
+        .arg("fast-retry")
+        .status()
+        .await;
+
+    match retry_result {
+        Ok(status) if status.success() => {
+            info!("proving-client: docker containers fast-restarted successfully");
+        }
+        Ok(status) => {
+            error!(
+                "proving-client: docker fast-retry script failed with exit code: {:?}",
+                status.code()
+            );
+            panic!(
+                "proving-client: cannot recover from docker restart failure - manual intervention required"
+            );
+        }
+        Err(e) => {
+            error!(
+                "proving-client: failed to execute docker fast-retry script: {}",
+                e
+            );
+            panic!(
+                "proving-client: cannot recover from docker restart failure - manual intervention required"
+            );
+        }
+    }
+
+    // wait for containers to fully initialize
+    info!(
+        "proving-client: waiting {}s for docker containers to initialize",
+        DOCKER_RETRY_WAIT_SECONDS
+    );
+    sleep(Duration::from_secs(DOCKER_RETRY_WAIT_SECONDS)).await;
+}
+
+// fallback: use legacy retry if fast-retry feature is not enabled
+#[cfg(not(feature = "fast-retry"))]
+#[allow(dead_code)]
+async fn restart_proving_clients_fast() {
+    restart_proving_clients().await;
 }

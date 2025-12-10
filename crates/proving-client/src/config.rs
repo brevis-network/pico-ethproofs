@@ -12,4 +12,7 @@ pub struct ProvingClientConfig {
 
     // subbblock proving grpc urls
     pub subblock_urls: Vec<Url>,
+
+    // proving timeout in seconds
+    pub proving_timeout_seconds: u64,
 }

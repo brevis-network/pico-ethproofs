@@ -24,6 +24,7 @@ Commands:
     force-kill          Force kill all containers (immediate)
     restart             Restart all containers
     retry               Retry with smaller CHUNK_SIZE (force kill mode)
+    fast-retry          Fast retry without logs or CHUNK_SIZE changes
     reset-chunk-size    Reset CHUNK_SIZE to normal value
     status              Show container status
     logs                Show container logs
@@ -58,8 +59,11 @@ Examples:
     # Restart only aggregator
     $0 restart --agg-only
 
-    # Retry failed block
+    # Retry failed block (with CHUNK_SIZE reduction)
     $0 retry --chunk-size 2097152
+
+    # Fast retry without logs or CHUNK_SIZE changes
+    $0 fast-retry
 
     # Reset CHUNK_SIZE to normal
     $0 reset-chunk-size
@@ -197,6 +201,10 @@ cmd_restart() {
 
 cmd_retry() {
     "${SCRIPT_DIR}/docker-multi-retry.sh" "$@"
+}
+
+cmd_fast_retry() {
+    "${SCRIPT_DIR}/docker-multi-fast-retry.sh" "$@"
 }
 
 cmd_reset_chunk_size() {
@@ -445,6 +453,9 @@ main() {
             ;;
         retry)
             cmd_retry "$@"
+            ;;
+        fast-retry)
+            cmd_fast_retry "$@"
             ;;
         reset-chunk-size)
             cmd_reset_chunk_size "$@"
