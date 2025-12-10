@@ -77,6 +77,7 @@ _reset_worker_env_by_index() {
     local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
     reset_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
 }
+export -f _reset_worker_env_by_index
 
 reset_all_env_files() {
     local chunk_size="$1"

@@ -179,6 +179,7 @@ EOF
                 log "Removing worker image on ${user}@${host} (worker $wid)..."
                 remove_image_with_dependencies "$host" "$user" "$port" "$CONTAINER_NAME_WORKER" "$IMAGE_NAME_WORKER" || true
             }
+            export -f _remove_worker_image_by_index
             
             run_parallel_workers _remove_worker_image_by_index || true
             ;;
@@ -284,6 +285,7 @@ cmd_save_logs() {
         local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-manual-${timestamp}.log"
         save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
     }
+    export -f _save_worker_logs_by_index
     
     # Save aggregator logs in background
     local agg_log="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-manual-${timestamp}.log"

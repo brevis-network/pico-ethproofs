@@ -288,51 +288,77 @@ validate_config() {
 run_parallel_workers() {
     local func="$1"
     shift
+    local extra_args=("$@")
     local pids=()
-    local temp_dirs=()
+    local temp_files=()
     
     # Create temp directory for each worker's output to avoid interleaving
-    local base_temp_dir=$(mktemp -d)
+    local base_temp_dir
+    base_temp_dir=$(mktemp -d) || {
+        error "Failed to create temp directory"
+        return 1
+    }
     
     log "Running ${#WORKERS[@]} worker operations in parallel..."
     
     # Launch all worker operations in background
     for i in "${!WORKERS[@]}"; do
         local worker_spec="${WORKERS[$i]}"
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec" || {
+            error "Failed to parse worker spec for index $i"
+            continue
+        }
         
         # Create temp file for this worker's output
         local worker_temp="${base_temp_dir}/worker_${i}.log"
-        temp_dirs+=("$worker_temp")
+        temp_files+=("$worker_temp")
         
-        # Capture wid for use in subshell
-        local worker_id="$wid"
+        # Run function in background with proper error handling
+        {
+            # Execute in a subshell that won't exit on errors
+            (
+                set +e
+                # Call the function and capture all output
+                if [[ ${#extra_args[@]} -gt 0 ]]; then
+                    result=$("$func" "$i" "${extra_args[@]}" 2>&1)
+                else
+                    result=$("$func" "$i" 2>&1)
+                fi
+                # Prefix each line with worker ID
+                echo "$result" | while IFS= read -r line || [[ -n "$line" ]]; do
+                    echo "[Worker $wid] $line"
+                done
+            )
+        } > "$worker_temp" 2>&1 &
         
-        # Run function in background, redirecting output to temp file
-        (
-            "$func" "$i" "$@" 2>&1 | while IFS= read -r line; do
-                echo "[Worker $worker_id] $line"
-            done > "$worker_temp"
-        ) &
         pids+=($!)
     done
+    
+    # Verify we have PIDs to wait for
+    if [[ ${#pids[@]} -eq 0 ]]; then
+        error "No worker operations were started"
+        rm -rf "$base_temp_dir" 2>/dev/null || true
+        return 1
+    fi
     
     # Wait for all background jobs to complete
     local failures=0
     local completed=0
     for i in "${!pids[@]}"; do
         local pid="${pids[$i]}"
-        if wait "$pid"; then
-            ((completed++))
+        if wait "$pid" 2>/dev/null; then
+            completed=$((completed + 1))
         else
-            ((failures++))
+            failures=$((failures + 1))
         fi
         
         # Output worker's log file (preserves ordering and prevents interleaving)
-        if [[ -f "${temp_dirs[$i]}" ]]; then
-            cat "${temp_dirs[$i]}"
-            rm -f "${temp_dirs[$i]}"
+        if [[ -f "${temp_files[$i]}" ]] && [[ -s "${temp_files[$i]}" ]]; then
+            cat "${temp_files[$i]}"
+        elif [[ -f "${temp_files[$i]}" ]]; then
+            echo "[Worker ${i}] (no output)"
         fi
+        rm -f "${temp_files[$i]}" 2>/dev/null || true
     done
     
     # Clean up temp directory
@@ -342,7 +368,7 @@ run_parallel_workers() {
         log "All ${completed} worker operations completed successfully"
         return 0
     else
-        error "$failures worker operation(s) failed out of ${#WORKERS[@]}"
+        warn "$failures worker operation(s) failed out of ${#WORKERS[@]}"
         return 1
     fi
 }
@@ -353,62 +379,93 @@ run_parallel_all() {
     local agg_func="$1"
     local worker_func="$2"
     shift 2
+    local extra_args=("$@")
     
     log "Running aggregator and ${#WORKERS[@]} workers in parallel..."
     
     local pids=()
-    local agg_temp=$(mktemp)
-    local base_temp_dir=$(mktemp -d)
+    local agg_temp
+    agg_temp=$(mktemp) || {
+        error "Failed to create temp file for aggregator"
+        return 1
+    }
+    
+    local base_temp_dir
+    base_temp_dir=$(mktemp -d) || {
+        error "Failed to create temp directory"
+        rm -f "$agg_temp"
+        return 1
+    }
     local worker_temps=()
     
     # Start aggregator in background
-    (
-        "$agg_func" "$@" 2>&1 | while IFS= read -r line; do
-            echo "[Aggregator] $line"
-        done > "$agg_temp"
-    ) &
+    {
+        (
+            set +e
+            if [[ ${#extra_args[@]} -gt 0 ]]; then
+                result=$("$agg_func" "${extra_args[@]}" 2>&1)
+            else
+                result=$("$agg_func" 2>&1)
+            fi
+            echo "$result" | while IFS= read -r line || [[ -n "$line" ]]; do
+                echo "[Aggregator] $line"
+            done
+        )
+    } > "$agg_temp" 2>&1 &
     local agg_pid=$!
     pids+=($agg_pid)
     
     # Start all workers in background
     for i in "${!WORKERS[@]}"; do
         local worker_spec="${WORKERS[$i]}"
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec" || {
+            error "Failed to parse worker spec for index $i"
+            continue
+        }
         
         local worker_temp="${base_temp_dir}/worker_${i}.log"
         worker_temps+=("$worker_temp")
         
-        # Capture wid for use in subshell
-        local worker_id="$wid"
-        
-        (
-            "$worker_func" "$i" "$@" 2>&1 | while IFS= read -r line; do
-                echo "[Worker $worker_id] $line"
-            done > "$worker_temp"
-        ) &
+        {
+            (
+                set +e
+                if [[ ${#extra_args[@]} -gt 0 ]]; then
+                    result=$("$worker_func" "$i" "${extra_args[@]}" 2>&1)
+                else
+                    result=$("$worker_func" "$i" 2>&1)
+                fi
+                echo "$result" | while IFS= read -r line || [[ -n "$line" ]]; do
+                    echo "[Worker $wid] $line"
+                done
+            )
+        } > "$worker_temp" 2>&1 &
         pids+=($!)
     done
     
     # Wait for all to complete
     local failures=0
     for pid in "${pids[@]}"; do
-        if ! wait "$pid"; then
-            ((failures++))
+        if ! wait "$pid" 2>/dev/null; then
+            failures=$((failures + 1))
         fi
     done
     
     # Output aggregator log first
-    if [[ -f "$agg_temp" ]]; then
+    if [[ -f "$agg_temp" ]] && [[ -s "$agg_temp" ]]; then
         cat "$agg_temp"
-        rm -f "$agg_temp"
+    elif [[ -f "$agg_temp" ]]; then
+        echo "[Aggregator] (no output)"
     fi
+    rm -f "$agg_temp" 2>/dev/null || true
     
     # Output worker logs
     for worker_temp in "${worker_temps[@]}"; do
-        if [[ -f "$worker_temp" ]]; then
+        if [[ -f "$worker_temp" ]] && [[ -s "$worker_temp" ]]; then
             cat "$worker_temp"
-            rm -f "$worker_temp"
+        elif [[ -f "$worker_temp" ]]; then
+            echo "[Worker] (no output)"
         fi
+        rm -f "$worker_temp" 2>/dev/null || true
     done
     
     # Clean up
@@ -418,7 +475,7 @@ run_parallel_all() {
         log "All operations completed successfully"
         return 0
     else
-        error "$failures operation(s) failed"
+        warn "$failures operation(s) failed"
         return 1
     fi
 }
@@ -1261,6 +1318,11 @@ export -f cleanup_aggregator force_kill_aggregator
 export -f stop_worker start_worker cleanup_worker force_kill_worker
 export -f stop_all_workers start_all_workers get_all_worker_status
 export -f cleanup_all_workers force_kill_all_workers
+
+# Internal worker wrapper functions (need to be exported for background jobs)
+export -f _stop_worker_by_index _start_worker_by_index _cleanup_worker_by_index
+export -f _force_kill_worker_by_index _get_worker_status_by_index
+export -f _verify_worker_gone_by_index
 
 # Combined functions
 export -f stop_all start_all restart_all show_all_status

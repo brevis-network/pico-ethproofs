@@ -233,6 +233,7 @@ _deploy_worker_by_index() {
     
     return 0
 }
+export -f _deploy_worker_by_index
 
 # Deploy to all workers
 deploy_workers() {
@@ -274,6 +275,7 @@ _verify_worker_deployment_by_index() {
         return 1
     fi
 }
+export -f _verify_worker_deployment_by_index
 
 # Verify deployment on all machines
 verify_deployment() {

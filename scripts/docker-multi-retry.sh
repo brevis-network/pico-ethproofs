@@ -104,6 +104,7 @@ _update_worker_env_by_index() {
     local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
     update_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
 }
+export -f _update_worker_env_by_index
 
 update_all_env_files() {
     local chunk_size="$1"
@@ -135,6 +136,7 @@ _save_worker_logs_by_index() {
     local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-${log_prefix}-${timestamp}.log"
     save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
 }
+export -f _save_worker_logs_by_index
 
 save_all_logs() {
     local timestamp=$(date +"$TIMESTAMP_FORMAT")
