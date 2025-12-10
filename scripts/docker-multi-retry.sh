@@ -93,6 +93,18 @@ update_env_chunk_size() {
     "
 }
 
+# Internal wrapper for parallel update_env_chunk_size execution
+_update_worker_env_by_index() {
+    local idx="$1"
+    local chunk_size="$2"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
+    update_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
+}
+
 update_all_env_files() {
     local chunk_size="$1"
     
@@ -102,14 +114,26 @@ update_all_env_files() {
     local agg_env="${AGG_REMOTE_DIR}/${ENV_FILE_AGGREGATOR}"
     update_env_chunk_size "$AGG_HOST" "$AGG_USER" "$agg_env" "$chunk_size" "$AGG_PORT"
     
-    # Update worker envs
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
-        update_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
-    done
+    # Update worker envs in parallel
+    if run_parallel_workers _update_worker_env_by_index "$chunk_size"; then
+        log "All .env files updated"
+        return 0
+    else
+        error "Some worker .env files failed to update"
+        return 1
+    fi
+}
+
+# Internal wrapper for parallel save_worker_logs execution
+_save_worker_logs_by_index() {
+    local idx="$1"
+    local timestamp="$2"
+    local log_prefix="$3"
     
-    log "All .env files updated"
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-${log_prefix}-${timestamp}.log"
+    save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
 }
 
 save_all_logs() {
@@ -118,16 +142,18 @@ save_all_logs() {
     
     log "Saving logs from failed run..."
     
-    # Save aggregator logs
+    # Save aggregator logs in background
     local agg_log="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-${log_prefix}-${timestamp}.log"
-    save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" "$AGG_PORT" || true
+    (
+        save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" "$AGG_PORT" || true
+    ) &
+    local agg_pid=$!
     
-    # Optionally save worker logs
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-${log_prefix}-${timestamp}.log"
-        save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
-    done
+    # Save worker logs in parallel
+    run_parallel_workers _save_worker_logs_by_index "$timestamp" "$log_prefix" || true
+    
+    # Wait for aggregator log save
+    wait "$agg_pid" || true
 }
 
 main() {

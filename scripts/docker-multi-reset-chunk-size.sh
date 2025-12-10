@@ -66,6 +66,18 @@ reset_env_chunk_size() {
     "
 }
 
+# Internal wrapper for parallel reset_env_chunk_size execution
+_reset_worker_env_by_index() {
+    local idx="$1"
+    local chunk_size="$2"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
+    reset_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
+}
+
 reset_all_env_files() {
     local chunk_size="$1"
     
@@ -75,14 +87,14 @@ reset_all_env_files() {
     local agg_env="${AGG_REMOTE_DIR}/${ENV_FILE_AGGREGATOR}"
     reset_env_chunk_size "$AGG_HOST" "$AGG_USER" "$agg_env" "$chunk_size" "$AGG_PORT"
     
-    # Update worker envs
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        local worker_env="${remote_dir}/${ENV_FILE_WORKER}"
-        reset_env_chunk_size "$host" "$user" "$worker_env" "$chunk_size" "$port"
-    done
-    
-    log "All .env files reset"
+    # Update worker envs in parallel
+    if run_parallel_workers _reset_worker_env_by_index "$chunk_size"; then
+        log "All .env files reset"
+        return 0
+    else
+        error "Some worker .env files failed to reset"
+        return 1
+    fi
 }
 
 main() {

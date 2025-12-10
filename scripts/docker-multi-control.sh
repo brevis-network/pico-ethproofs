@@ -167,12 +167,16 @@ EOF
 
     case "$mode" in
         all|workers)
-            for worker_spec in "${WORKERS[@]}"; do
-                read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+            # Internal wrapper for parallel remove_image execution
+            _remove_worker_image_by_index() {
+                local idx="$1"
+                local worker_spec="${WORKERS[$idx]}"
+                read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
                 log "Removing worker image on ${user}@${host} (worker $wid)..."
                 remove_image_with_dependencies "$host" "$user" "$port" "$CONTAINER_NAME_WORKER" "$IMAGE_NAME_WORKER" || true
-                apply_worker_delay
-            done
+            }
+            
+            run_parallel_workers _remove_worker_image_by_index || true
             ;;
     esac
 
@@ -263,16 +267,28 @@ cmd_save_logs() {
     
     log "=== Saving All Logs ==="
     
-    # Save aggregator logs
-    local agg_log="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-manual-${timestamp}.log"
-    save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" "$AGG_PORT" || true
-    
-    # Save worker logs
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    # Internal wrapper for parallel save_worker_logs execution
+    _save_worker_logs_by_index() {
+        local idx="$1"
+        local timestamp="$2"
+        local worker_spec="${WORKERS[$idx]}"
+        read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-manual-${timestamp}.log"
         save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
-    done
+    }
+    
+    # Save aggregator logs in background
+    local agg_log="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-manual-${timestamp}.log"
+    (
+        save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" "$AGG_PORT" || true
+    ) &
+    local agg_pid=$!
+    
+    # Save worker logs in parallel
+    run_parallel_workers _save_worker_logs_by_index "$timestamp" || true
+    
+    # Wait for aggregator log save
+    wait "$agg_pid" || true
     
     log "=== Logs Saved ==="
 }
