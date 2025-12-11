@@ -137,6 +137,13 @@ struct Args {
 
     #[clap(
         long,
+        env = "PROVING_TIMEOUT_SECONDS",
+        help = "Timeout for proving operations in seconds (default: 30 for fast-retry, 120 otherwise)"
+    )]
+    pub proving_timeout_seconds: Option<u64>,
+
+    #[clap(
+        long,
         default_value = "false",
         help = "Identify if should report the block proving status to eth-proofs; eth-proofs api-url, api-token and cluster-id must be set if enabled"
     )]
@@ -302,6 +309,14 @@ fn init_proving_client(args: &Args) -> (Arc<ProvingClient>, Arc<BlockMsgEndpoint
     // create communication channel
     let comm_channel = DuplexUnboundedChannel::default();
 
+    // Determine default timeout based on fast-retry feature
+    #[cfg(feature = "fast-retry")]
+    let default_timeout = 30;
+    #[cfg(not(feature = "fast-retry"))]
+    let default_timeout = 120;
+
+    let proving_timeout = args.proving_timeout_seconds.unwrap_or(default_timeout);
+
     // create proving-client instance
     let config = ProvingClientConfig::new(
         args.max_grpc_msg_bytes,
@@ -311,6 +326,7 @@ fn init_proving_client(args: &Args) -> (Arc<ProvingClient>, Arc<BlockMsgEndpoint
         args.proving_subblock_urls
             .clone()
             .expect("eth-proofs: must set `proving_subblock_urls` or enable `is_mock_proving`"),
+        proving_timeout,
     );
     let proving_client = ProvingClient::new(config, comm_channel.endpoint1()).into();
 

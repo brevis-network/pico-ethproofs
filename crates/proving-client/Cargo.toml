@@ -25,3 +25,7 @@ tracing.workspace = true
 # skip-pending-on-retry feature skips pending blocks during retry attempts
 # this is useful when proving the latest blocks if a block failed to prove and triggered a retry
 skip-pending-on-retry = []
+
+# fast-retry feature enables faster retry with no log saving, no CHUNK_SIZE change,
+# and always skips replaying failed blocks (resumes from latest)
+fast-retry = ["skip-pending-on-retry"]

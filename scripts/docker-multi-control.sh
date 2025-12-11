@@ -24,6 +24,7 @@ Commands:
     force-kill          Force kill all containers (immediate)
     restart             Restart all containers
     retry               Retry with smaller CHUNK_SIZE (force kill mode)
+    fast-retry          Fast retry without logs or CHUNK_SIZE changes
     reset-chunk-size    Reset CHUNK_SIZE to normal value
     status              Show container status
     logs                Show container logs
@@ -58,8 +59,11 @@ Examples:
     # Restart only aggregator
     $0 restart --agg-only
 
-    # Retry failed block
+    # Retry failed block (with CHUNK_SIZE reduction)
     $0 retry --chunk-size 2097152
+
+    # Fast retry without logs or CHUNK_SIZE changes
+    $0 fast-retry
 
     # Reset CHUNK_SIZE to normal
     $0 reset-chunk-size
@@ -167,12 +171,17 @@ EOF
 
     case "$mode" in
         all|workers)
-            for worker_spec in "${WORKERS[@]}"; do
-                read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+            # Internal wrapper for parallel remove_image execution
+            _remove_worker_image_by_index() {
+                local idx="$1"
+                local worker_spec="${WORKERS[$idx]}"
+                read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
                 log "Removing worker image on ${user}@${host} (worker $wid)..."
                 remove_image_with_dependencies "$host" "$user" "$port" "$CONTAINER_NAME_WORKER" "$IMAGE_NAME_WORKER" || true
-                apply_worker_delay
-            done
+            }
+            export -f _remove_worker_image_by_index
+            
+            run_parallel_workers _remove_worker_image_by_index || true
             ;;
     esac
 
@@ -193,6 +202,10 @@ cmd_restart() {
 
 cmd_retry() {
     "${SCRIPT_DIR}/docker-multi-retry.sh" "$@"
+}
+
+cmd_fast_retry() {
+    "${SCRIPT_DIR}/docker-multi-fast-retry.sh" "$@"
 }
 
 cmd_reset_chunk_size() {
@@ -263,16 +276,29 @@ cmd_save_logs() {
     
     log "=== Saving All Logs ==="
     
-    # Save aggregator logs
-    local agg_log="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-manual-${timestamp}.log"
-    save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" "$AGG_PORT" || true
-    
-    # Save worker logs
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    # Internal wrapper for parallel save_worker_logs execution
+    _save_worker_logs_by_index() {
+        local idx="$1"
+        local timestamp="$2"
+        local worker_spec="${WORKERS[$idx]}"
+        read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
         local worker_log="${remote_dir}/${LOGS_DIR}/subblock-${wid}-manual-${timestamp}.log"
         save_container_logs "$host" "$user" "$CONTAINER_NAME_WORKER" "$worker_log" "$port" || true
-    done
+    }
+    export -f _save_worker_logs_by_index
+    
+    # Save aggregator logs in background
+    local agg_log="${AGG_REMOTE_DIR}/${LOGS_DIR}/aggregator-manual-${timestamp}.log"
+    (
+        save_container_logs "$AGG_HOST" "$AGG_USER" "$CONTAINER_NAME_AGGREGATOR" "$agg_log" "$AGG_PORT" || true
+    ) &
+    local agg_pid=$!
+    
+    # Save worker logs in parallel
+    run_parallel_workers _save_worker_logs_by_index "$timestamp" || true
+    
+    # Wait for aggregator log save
+    wait "$agg_pid" || true
     
     log "=== Logs Saved ==="
 }
@@ -429,6 +455,9 @@ main() {
             ;;
         retry)
             cmd_retry "$@"
+            ;;
+        fast-retry)
+            cmd_fast_retry "$@"
             ;;
         reset-chunk-size)
             cmd_reset_chunk_size "$@"
