@@ -72,7 +72,7 @@ prost = "0.13"
 reqwest = "0.12"
 reqwest-middleware = { version = "0.4", features = ["json"] }
 reqwest-retry = "0.7"
-serde = { version = "=1.0.219", features = ["derive", "rc"] }
+serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "signal", "process"] }
 tokio-tungstenite = "0.28"
@@ -88,16 +88,23 @@ tracing-subscriber = { version = "0.3", features = ["std", "env-filter"] }
 tungstenite = "0.28"
 
 [patch.crates-io]
-foldhash = { git = "https://github.com/brevis-network/foldhash.git", branch = "pico" }
-revm = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-bytecode = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-context = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-database = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-database-interface = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-handler = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-inspector = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-interpreter = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-precompile = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-primitives = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
-revm-state = { git = "https://github.com/brevis-network/revm.git", branch = "pico" }
+# alloy
+alloy-evm = { git = "https://github.com/brevis-network/alloy-evm.git", branch = "pico-v0-23-0" }
+alloy-primitives = { git = "https://github.com/brevis-network/alloy-core.git", branch = "pico-v1-4-1" }
+# misc
+foldhash = { git = "https://github.com/brevis-network/foldhash.git", branch = "pico-v0-2-0" }
 sha2 = { git = "https://github.com/brevis-network/hashes.git", package = "sha2", branch = "sha2-0.10.9"}
+# revm
+op-revm = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-bytecode = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-context = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-context-interface = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-database = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-database-interface = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-handler = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-inspector = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-interpreter = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-precompile = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-primitives = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
+revm-state = { git = "https://github.com/brevis-network/revm.git", branch = "pico-v97-31-0-1" }
