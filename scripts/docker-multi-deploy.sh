@@ -199,6 +199,42 @@ deploy_aggregator() {
     return 0
 }
 
+# Internal wrapper for parallel deploy_worker execution
+_deploy_worker_by_index() {
+    local idx="$1"
+    local worker_image="$2"
+    local skip_cleanup="$3"
+    local keep_tar="$4"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    log "Deploying to worker $wid..."
+    
+    if ! deploy_image_to_machine \
+        "$host" \
+        "$user" \
+        "$worker_image" \
+        "$remote_dir" \
+        "$CONTAINER_NAME_WORKER" \
+        "$IMAGE_NAME_WORKER" \
+        "worker $wid" \
+        "$port"; then
+        error "Worker $wid deployment failed"
+        return 1
+    else
+        # Remove tar file if requested
+        if [[ "$keep_tar" != "true" ]]; then
+            local image_filename=$(basename "$worker_image")
+            log "Removing tar file from worker $wid..."
+            ssh_exec "$user" "$host" "$port" "rm -f '${remote_dir}/${image_filename}'" || true
+        fi
+    fi
+    
+    return 0
+}
+export -f _deploy_worker_by_index
+
 # Deploy to all workers
 deploy_workers() {
     local worker_image="$1"
@@ -212,48 +248,34 @@ deploy_workers() {
         return 1
     fi
     
-    local failed_workers=()
-    
-    # Deploy to each worker
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        
+    # Deploy to all workers in parallel
+    if run_parallel_workers _deploy_worker_by_index "$worker_image" "$skip_cleanup" "$keep_tar"; then
         log ""
-        log "Deploying to worker $wid..."
-        
-        if ! deploy_image_to_machine \
-            "$host" \
-            "$user" \
-            "$worker_image" \
-            "$remote_dir" \
-            "$CONTAINER_NAME_WORKER" \
-            "$IMAGE_NAME_WORKER" \
-            "worker $wid" \
-            "$port"; then
-            error "Worker $wid deployment failed"
-            failed_workers+=("$wid")
-        else
-            # Remove tar file if requested
-            if [[ "$keep_tar" != "true" ]]; then
-                local image_filename=$(basename "$worker_image")
-                log "Removing tar file from worker $wid..."
-                ssh_exec "$user" "$host" "$port" "rm -f '${remote_dir}/${image_filename}'" || true
-            fi
-        fi
-        
-        apply_worker_delay
-    done
-    
-    # Check for failures
-    if [[ ${#failed_workers[@]} -gt 0 ]]; then
-        error "Failed to deploy to ${#failed_workers[@]} worker(s): ${failed_workers[*]}"
+        log "=== All Workers Deployed Successfully ==="
+        return 0
+    else
+        error "=== Some workers failed to deploy ==="
         return 1
     fi
-    
-    log ""
-    log "=== All Workers Deployed Successfully ==="
-    return 0
 }
+
+# Internal wrapper for parallel verify_worker_deployment execution
+_verify_worker_deployment_by_index() {
+    local idx="$1"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    log "Verifying worker $wid image..."
+    if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX images | grep -q '${IMAGE_NAME_WORKER%:*}'"; then
+        log "✓ Worker $wid image verified: $IMAGE_NAME_WORKER"
+        return 0
+    else
+        error "✗ Worker $wid image not found!"
+        return 1
+    fi
+}
+export -f _verify_worker_deployment_by_index
 
 # Verify deployment on all machines
 verify_deployment() {
@@ -274,18 +296,11 @@ verify_deployment() {
         fi
     fi
     
-    # Verify workers
+    # Verify workers in parallel
     if [[ "$mode" == "all" ]] || [[ "$mode" == "workers" ]]; then
-        for worker_spec in "${WORKERS[@]}"; do
-            read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-            log "Verifying worker $wid image..."
-            if ssh_exec "$user" "$host" "$port" "$DOCKER_PREFIX images | grep -q '${IMAGE_NAME_WORKER%:*}'"; then
-                log "✓ Worker $wid image verified: $IMAGE_NAME_WORKER"
-            else
-                error "✗ Worker $wid image not found!"
-                ((failures++))
-            fi
-        done
+        if ! run_parallel_workers _verify_worker_deployment_by_index; then
+            ((failures++))
+        fi
     fi
     
     if [[ $failures -eq 0 ]]; then

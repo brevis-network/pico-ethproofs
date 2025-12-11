@@ -278,6 +278,209 @@ validate_config() {
 }
 
 # =============================================================================
+# PARALLEL EXECUTION HELPERS
+# =============================================================================
+
+# Run a function in parallel for all workers
+# Usage: run_parallel_workers <function_name> [extra_args...]
+# The function will be called with worker index as first arg, then extra_args
+# Each worker operation runs in background, then we wait for all to complete
+run_parallel_workers() {
+    local func="$1"
+    shift
+    local extra_args=("$@")
+    local pids=()
+    local temp_files=()
+    
+    # Create temp directory for each worker's output to avoid interleaving
+    local base_temp_dir
+    base_temp_dir=$(mktemp -d) || {
+        error "Failed to create temp directory"
+        return 1
+    }
+    
+    log "Running ${#WORKERS[@]} worker operations in parallel..."
+    
+    # Launch all worker operations in background
+    for i in "${!WORKERS[@]}"; do
+        local worker_spec="${WORKERS[$i]}"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec" || {
+            error "Failed to parse worker spec for index $i"
+            continue
+        }
+        
+        # Create temp file for this worker's output
+        local worker_temp="${base_temp_dir}/worker_${i}.log"
+        temp_files+=("$worker_temp")
+        
+        # Run function in background with proper error handling
+        {
+            # Execute in a subshell that won't exit on errors
+            (
+                set +e
+                # Call the function and capture all output
+                if [[ ${#extra_args[@]} -gt 0 ]]; then
+                    result=$("$func" "$i" "${extra_args[@]}" 2>&1)
+                else
+                    result=$("$func" "$i" 2>&1)
+                fi
+                # Prefix each line with worker ID
+                echo "$result" | while IFS= read -r line || [[ -n "$line" ]]; do
+                    echo "[Worker $wid] $line"
+                done
+            )
+        } > "$worker_temp" 2>&1 &
+        
+        pids+=($!)
+    done
+    
+    # Verify we have PIDs to wait for
+    if [[ ${#pids[@]} -eq 0 ]]; then
+        error "No worker operations were started"
+        rm -rf "$base_temp_dir" 2>/dev/null || true
+        return 1
+    fi
+    
+    # Wait for all background jobs to complete
+    local failures=0
+    local completed=0
+    for i in "${!pids[@]}"; do
+        local pid="${pids[$i]}"
+        if wait "$pid" 2>/dev/null; then
+            completed=$((completed + 1))
+        else
+            failures=$((failures + 1))
+        fi
+        
+        # Output worker's log file (preserves ordering and prevents interleaving)
+        if [[ -f "${temp_files[$i]}" ]] && [[ -s "${temp_files[$i]}" ]]; then
+            cat "${temp_files[$i]}"
+        elif [[ -f "${temp_files[$i]}" ]]; then
+            echo "[Worker ${i}] (no output)"
+        fi
+        rm -f "${temp_files[$i]}" 2>/dev/null || true
+    done
+    
+    # Clean up temp directory
+    rm -rf "$base_temp_dir" 2>/dev/null || true
+    
+    if [[ $failures -eq 0 ]]; then
+        log "All ${completed} worker operations completed successfully"
+        return 0
+    else
+        warn "$failures worker operation(s) failed out of ${#WORKERS[@]}"
+        return 1
+    fi
+}
+
+# Run aggregator and all workers in parallel (when order doesn't matter)
+# Usage: run_parallel_all <agg_func> <worker_func> [extra_args...]
+run_parallel_all() {
+    local agg_func="$1"
+    local worker_func="$2"
+    shift 2
+    local extra_args=("$@")
+    
+    log "Running aggregator and ${#WORKERS[@]} workers in parallel..."
+    
+    local pids=()
+    local agg_temp
+    agg_temp=$(mktemp) || {
+        error "Failed to create temp file for aggregator"
+        return 1
+    }
+    
+    local base_temp_dir
+    base_temp_dir=$(mktemp -d) || {
+        error "Failed to create temp directory"
+        rm -f "$agg_temp"
+        return 1
+    }
+    local worker_temps=()
+    
+    # Start aggregator in background
+    {
+        (
+            set +e
+            if [[ ${#extra_args[@]} -gt 0 ]]; then
+                result=$("$agg_func" "${extra_args[@]}" 2>&1)
+            else
+                result=$("$agg_func" 2>&1)
+            fi
+            echo "$result" | while IFS= read -r line || [[ -n "$line" ]]; do
+                echo "[Aggregator] $line"
+            done
+        )
+    } > "$agg_temp" 2>&1 &
+    local agg_pid=$!
+    pids+=($agg_pid)
+    
+    # Start all workers in background
+    for i in "${!WORKERS[@]}"; do
+        local worker_spec="${WORKERS[$i]}"
+        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec" || {
+            error "Failed to parse worker spec for index $i"
+            continue
+        }
+        
+        local worker_temp="${base_temp_dir}/worker_${i}.log"
+        worker_temps+=("$worker_temp")
+        
+        {
+            (
+                set +e
+                if [[ ${#extra_args[@]} -gt 0 ]]; then
+                    result=$("$worker_func" "$i" "${extra_args[@]}" 2>&1)
+                else
+                    result=$("$worker_func" "$i" 2>&1)
+                fi
+                echo "$result" | while IFS= read -r line || [[ -n "$line" ]]; do
+                    echo "[Worker $wid] $line"
+                done
+            )
+        } > "$worker_temp" 2>&1 &
+        pids+=($!)
+    done
+    
+    # Wait for all to complete
+    local failures=0
+    for pid in "${pids[@]}"; do
+        if ! wait "$pid" 2>/dev/null; then
+            failures=$((failures + 1))
+        fi
+    done
+    
+    # Output aggregator log first
+    if [[ -f "$agg_temp" ]] && [[ -s "$agg_temp" ]]; then
+        cat "$agg_temp"
+    elif [[ -f "$agg_temp" ]]; then
+        echo "[Aggregator] (no output)"
+    fi
+    rm -f "$agg_temp" 2>/dev/null || true
+    
+    # Output worker logs
+    for worker_temp in "${worker_temps[@]}"; do
+        if [[ -f "$worker_temp" ]] && [[ -s "$worker_temp" ]]; then
+            cat "$worker_temp"
+        elif [[ -f "$worker_temp" ]]; then
+            echo "[Worker] (no output)"
+        fi
+        rm -f "$worker_temp" 2>/dev/null || true
+    done
+    
+    # Clean up
+    rm -rf "$base_temp_dir" 2>/dev/null || true
+    
+    if [[ $failures -eq 0 ]]; then
+        log "All operations completed successfully"
+        return 0
+    else
+        warn "$failures operation(s) failed"
+        return 1
+    fi
+}
+
+# =============================================================================
 # CONTAINER MANAGEMENT FUNCTIONS
 # =============================================================================
 
@@ -635,6 +838,17 @@ stop_worker() {
     stop_and_remove_container "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"
 }
 
+# Internal wrapper for parallel stop_worker execution
+_stop_worker_by_index() {
+    local idx="$1"
+    local save_logs="${2:-false}"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    stop_worker "$host" "$user" "$port" "$wid" "$save_logs" "$remote_dir"
+}
+
 # Start a single worker container
 start_worker() {
     local host="$1"
@@ -656,6 +870,17 @@ start_worker() {
     log "Worker $wid started successfully"
 }
 
+# Internal wrapper for parallel start_worker execution
+_start_worker_by_index() {
+    local idx="$1"
+    local env_file="${2:-$ENV_FILE_WORKER}"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    start_worker "$host" "$user" "$port" "$wid" "$remote_dir" "$cpuset_cpus" "$cpuset_mems" "$env_file"
+}
+
 # Cleanup a single worker container
 cleanup_worker() {
     local host="$1"
@@ -667,32 +892,42 @@ cleanup_worker() {
     force_kill_container "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"
 }
 
+# Internal wrapper for parallel cleanup_worker execution
+_cleanup_worker_by_index() {
+    local idx="$1"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    cleanup_worker "$host" "$user" "$port" "$wid"
+}
+
 # Stop all worker containers
 stop_all_workers() {
     local save_logs="${1:-false}"
     
     log "Stopping all ${#WORKERS[@]} workers..."
     
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        stop_worker "$host" "$user" "$port" "$wid" "$save_logs" "$remote_dir"
-        apply_worker_delay
-    done
-    
-    log "All workers stopped"
+    if run_parallel_workers _stop_worker_by_index "$save_logs"; then
+        log "All workers stopped"
+        return 0
+    else
+        error "Some workers failed to stop"
+        return 1
+    fi
 }
 
 # Start all worker containers
 start_all_workers() {
     log "Starting all ${#WORKERS[@]} workers..."
     
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        start_worker "$host" "$user" "$port" "$wid" "$remote_dir" "$cpuset_cpus" "$cpuset_mems"
-        apply_worker_delay
-    done
-    
-    log "All workers started"
+    if run_parallel_workers _start_worker_by_index; then
+        log "All workers started"
+        return 0
+    else
+        error "Some workers failed to start"
+        return 1
+    fi
 }
 
 # Get status of all worker containers
@@ -714,62 +949,70 @@ start_all_workers() {
 #     done
 # }
 
+# Internal wrapper for parallel get_worker_status execution
+_get_worker_status_by_index() {
+    local idx="$1"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    log "Worker $wid status on ${user}@${host}:"
+    
+    # Step 1: Get running containers
+    local running_containers
+    running_containers=$(ssh_exec "$user" "$host" "$port" "sudo docker ps --format '{{.Names}}'")
+    
+    if [[ $? -ne 0 ]]; then
+        error "Failed to connect to worker $wid at ${user}@${host}"
+        echo "  Status: CONNECTION FAILED"
+        return 1
+    fi
+    
+    echo "  [✓] SSH connected"
+    
+    # Step 2: Check if container is running (locally)
+    if echo "$running_containers" | grep -q '^pico-subblock-worker$'; then
+        echo "  Status: RUNNING"
+        ssh_exec "$user" "$host" "$port" "sudo docker ps | grep pico-subblock-worker"
+        return 0
+    fi
+    
+    # Step 3: Check if container exists but stopped
+    local all_containers
+    all_containers=$(ssh_exec "$user" "$host" "$port" "sudo docker ps -a --format '{{.Names}}'")
+    
+    if [[ $? -ne 0 ]]; then
+        error "Failed to connect to worker $wid at ${user}@${host}"
+        echo "  Status: CONNECTION FAILED"
+        return 1
+    fi
+    
+    if echo "$all_containers" | grep -q '^pico-subblock-worker$'; then
+        echo "  Status: STOPPED (container exists but not running)"
+        ssh_exec "$user" "$host" "$port" "sudo docker ps -a | grep pico-subblock-worker"
+        return 0
+    fi
+    
+    echo "  Status: DOES NOT EXIST"
+    return 0
+}
+
 # Get status of all worker containers
 get_all_worker_status() {
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        log "Worker $wid status on ${user}@${host}:"
-        
-        # Step 1: Get running containers
-        local running_containers
-        running_containers=$(ssh_exec "$user" "$host" "$port" "sudo docker ps --format '{{.Names}}'")
-        
-        if [[ $? -ne 0 ]]; then
-            error "Failed to connect to worker $wid at ${user}@${host}"
-            echo "  Status: CONNECTION FAILED"
-            continue
-        fi
-        
-        echo "  [✓] SSH connected"
-        
-        # Step 2: Check if container is running (locally)
-        if echo "$running_containers" | grep -q '^pico-subblock-worker$'; then
-            echo "  Status: RUNNING"
-            ssh_exec "$user" "$host" "$port" "sudo docker ps | grep pico-subblock-worker"
-            continue
-        fi
-        
-        # Step 3: Check if container exists but stopped
-        local all_containers
-        all_containers=$(ssh_exec "$user" "$host" "$port" "sudo docker ps -a --format '{{.Names}}'")
-        
-        if [[ $? -ne 0 ]]; then
-            error "Failed to connect to worker $wid at ${user}@${host}"
-            echo "  Status: CONNECTION FAILED"
-            continue
-        fi
-        
-        if echo "$all_containers" | grep -q '^pico-subblock-worker$'; then
-            echo "  Status: STOPPED (container exists but not running)"
-            ssh_exec "$user" "$host" "$port" "sudo docker ps -a | grep pico-subblock-worker"
-            continue
-        fi
-        
-        echo "  Status: DOES NOT EXIST"
-    done
+    run_parallel_workers _get_worker_status_by_index
 }
 
 # Cleanup all worker containers
 cleanup_all_workers() {
     log "Cleaning up all ${#WORKERS[@]} workers..."
     
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        cleanup_worker "$host" "$user" "$port" "$wid"
-        apply_worker_delay
-    done
-    
-    log "All workers cleaned up"
+    if run_parallel_workers _cleanup_worker_by_index; then
+        log "All workers cleaned up"
+        return 0
+    else
+        error "Some workers failed to cleanup"
+        return 1
+    fi
 }
 
 # Force kill a single worker container (immediate termination)
@@ -784,24 +1027,25 @@ force_kill_worker() {
     return $?
 }
 
+# Internal wrapper for parallel force_kill_worker execution
+_force_kill_worker_by_index() {
+    local idx="$1"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    force_kill_worker "$host" "$user" "$port" "$wid"
+}
+
 # Force kill all worker containers (immediate termination)
 force_kill_all_workers() {
     log "Force killing all ${#WORKERS[@]} workers..."
     
-    local failures=0
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        if ! force_kill_worker "$host" "$user" "$port" "$wid"; then
-            ((failures++))
-        fi
-        apply_worker_delay
-    done
-    
-    if [[ $failures -eq 0 ]]; then
+    if run_parallel_workers _force_kill_worker_by_index; then
         log "All workers force killed successfully"
         return 0
     else
-        error "$failures worker(s) failed to be removed"
+        error "Some workers failed to be removed"
         return 1
     fi
 }
@@ -815,9 +1059,40 @@ stop_all() {
     local save_logs="${1:-true}"
     
     log "=== Stopping all containers ==="
-    stop_aggregator "$save_logs"
-    stop_all_workers "$save_logs"
-    log "=== All containers stopped ==="
+    
+    # Run aggregator and workers in parallel
+    local agg_pid
+    local workers_pid
+    
+    # Start aggregator stop in background
+    (
+        stop_aggregator "$save_logs" 2>&1 | while IFS= read -r line; do
+            echo "[Aggregator] $line"
+        done
+    ) &
+    agg_pid=$!
+    
+    # Start workers stop in background
+    (
+        stop_all_workers "$save_logs" 2>&1 | while IFS= read -r line; do
+            echo "$line"
+        done
+    ) &
+    workers_pid=$!
+    
+    # Wait for both to complete
+    local agg_result=0
+    local workers_result=0
+    wait "$agg_pid" || agg_result=$?
+    wait "$workers_pid" || workers_result=$?
+    
+    if [[ $agg_result -eq 0 ]] && [[ $workers_result -eq 0 ]]; then
+        log "=== All containers stopped ==="
+        return 0
+    else
+        error "=== Some containers failed to stop ==="
+        return 1
+    fi
 }
 
 # Start all containers (aggregator + workers)
@@ -851,11 +1126,57 @@ show_all_status() {
 # Cleanup all containers (force remove without logs)
 cleanup_all() {
     log "=== Cleaning up all containers ==="
-    cleanup_aggregator
-    cleanup_all_workers
+    
+    # Run aggregator and workers in parallel
+    local agg_pid
+    local workers_pid
+    
+    # Start aggregator cleanup in background
+    (
+        cleanup_aggregator 2>&1 | while IFS= read -r line; do
+            echo "[Aggregator] $line"
+        done
+    ) &
+    agg_pid=$!
+    
+    # Start workers cleanup in background
+    (
+        cleanup_all_workers 2>&1 | while IFS= read -r line; do
+            echo "$line"
+        done
+    ) &
+    workers_pid=$!
+    
+    # Wait for both to complete
+    local agg_result=0
+    local workers_result=0
+    wait "$agg_pid" || agg_result=$?
+    wait "$workers_pid" || workers_result=$?
+    
     # Wait a moment to ensure cleanup completes
     sleep 2
-    log "=== All containers cleaned up ==="
+    
+    if [[ $agg_result -eq 0 ]] && [[ $workers_result -eq 0 ]]; then
+        log "=== All containers cleaned up ==="
+        return 0
+    else
+        error "=== Some containers failed to cleanup ==="
+        return 1
+    fi
+}
+
+# Internal wrapper for parallel verify_worker_gone execution
+_verify_worker_gone_by_index() {
+    local idx="$1"
+    
+    local worker_spec="${WORKERS[$idx]}"
+    read -r host user port wid idx_val remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
+    
+    if ! is_container_gone "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"; then
+        error "Worker $wid container still exists on ${user}@${host}"
+        return 1
+    fi
+    return 0
 }
 
 # Verify all containers are completely removed
@@ -870,14 +1191,10 @@ verify_all_containers_gone() {
         ((failures++))
     fi
     
-    # Check workers
-    for worker_spec in "${WORKERS[@]}"; do
-        read -r host user port wid idx remote_dir cpuset_cpus cpuset_mems <<< "$worker_spec"
-        if ! is_container_gone "$host" "$user" "$CONTAINER_NAME_WORKER" "$port"; then
-            error "Worker $wid container still exists on ${user}@${host}"
-            ((failures++))
-        fi
-    done
+    # Check workers in parallel
+    if ! run_parallel_workers _verify_worker_gone_by_index; then
+        ((failures++))
+    fi
     
     if [[ $failures -eq 0 ]]; then
         log "All containers verified as removed"
@@ -892,11 +1209,31 @@ verify_all_containers_gone() {
 force_kill_all() {
     log "=== Force killing all containers ==="
     
+    # Run aggregator and workers in parallel
+    local agg_pid
+    local workers_pid
+    
+    # Start aggregator force kill in background
+    (
+        force_kill_aggregator 2>&1 | while IFS= read -r line; do
+            echo "[Aggregator] $line"
+        done
+    ) &
+    agg_pid=$!
+    
+    # Start workers force kill in background
+    (
+        force_kill_all_workers 2>&1 | while IFS= read -r line; do
+            echo "$line"
+        done
+    ) &
+    workers_pid=$!
+    
+    # Wait for both to complete
     local agg_result=0
     local workers_result=0
-    
-    force_kill_aggregator || agg_result=$?
-    force_kill_all_workers || workers_result=$?
+    wait "$agg_pid" || agg_result=$?
+    wait "$workers_pid" || workers_result=$?
     
     # Wait a moment to ensure kill completes
     sleep 2
@@ -960,6 +1297,9 @@ export -f init_all_ssh_connections close_all_ssh_connections
 # Worker management functions
 export -f get_worker parse_worker_spec build_worker_lists apply_worker_delay
 
+# Parallel execution helpers
+export -f run_parallel_workers run_parallel_all
+
 # Configuration validation
 export -f validate_config
 
@@ -978,6 +1318,11 @@ export -f cleanup_aggregator force_kill_aggregator
 export -f stop_worker start_worker cleanup_worker force_kill_worker
 export -f stop_all_workers start_all_workers get_all_worker_status
 export -f cleanup_all_workers force_kill_all_workers
+
+# Internal worker wrapper functions (need to be exported for background jobs)
+export -f _stop_worker_by_index _start_worker_by_index _cleanup_worker_by_index
+export -f _force_kill_worker_by_index _get_worker_status_by_index
+export -f _verify_worker_gone_by_index
 
 # Combined functions
 export -f stop_all start_all restart_all show_all_status
