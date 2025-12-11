@@ -73,6 +73,7 @@ impl ProvingClient {
             // variable for saving the block number proving in progress
             let mut proving_block_report: Option<BlockProvingReport> = None;
             // variable for saving the last proving inputs (for retry on timeout)
+            #[cfg(not(feature = "fast-retry"))]
             let mut last_proving_inputs: Option<ProvingInputs> = None;
             // queue for saving the pending messages when a block is proving
             let mut pending_msgs = VecDeque::new();
@@ -124,7 +125,6 @@ impl ProvingClient {
                                     pending_msgs.clear();
                                     start_timestamps.remove(&block_number);
                                     proving_block_report = None;
-                                    last_proving_inputs = None;
                                     info!(
                                         "proving-client: fast retry complete, skipping block {} and resuming from latest",
                                         block_number
@@ -204,7 +204,10 @@ impl ProvingClient {
                                 report.block_number,
                             );
                             // save the proving inputs for potential retry on timeout
-                            last_proving_inputs = Some(proving_msg.proving_inputs);
+                            #[cfg(not(feature = "fast-retry"))]
+                            {
+                                last_proving_inputs = Some(proving_msg.proving_inputs);
+                            }
                             proving_block_report = Some(report);
                         }
                     }
@@ -290,7 +293,10 @@ impl ProvingClient {
                                 report.block_number,
                             );
                             // save the proving inputs for potential retry on timeout
-                            last_proving_inputs = Some(proving_msg.proving_inputs);
+                            #[cfg(not(feature = "fast-retry"))]
+                            {
+                                last_proving_inputs = Some(proving_msg.proving_inputs);
+                            }
                             proving_block_report = Some(report);
                         }
                     }
@@ -317,7 +323,6 @@ impl ProvingClient {
                                 pending_msgs.clear();
                                 start_timestamps.remove(&block_number);
                                 proving_block_report = None;
-                                last_proving_inputs = None;
                                 info!(
                                     "proving-client: fast retry complete, skipping block {} and resuming from latest",
                                     block_number
@@ -593,6 +598,7 @@ async fn send_proving_inputs(
 }
 
 // restart proving clients (legacy retry with CHUNK_SIZE reduction)
+#[cfg(not(feature = "fast-retry"))]
 async fn restart_proving_clients() {
     // restart docker containers using the retry script
     let retry_result = Command::new("./scripts/docker-multi-control.sh")
