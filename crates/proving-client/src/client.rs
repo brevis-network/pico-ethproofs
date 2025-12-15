@@ -212,56 +212,64 @@ impl ProvingClient {
                         }
                     }
                     Ok(Ok(BlockMsg::Proved(proved_msg))) => {
-                        let mut report = proving_block_report.unwrap();
-                        let block_number = report.block_number;
-                        proving_block_report = None;
-                        assert_eq!(
-                            block_number, proved_msg.block_number,
-                            "proving-client: the proved block is not consistent with the previous proving block",
-                        );
+                        let block_number = proved_msg.block_number;
+                        if let Some(mut report) = proving_block_report {
+                            proving_block_report = None;
+                            assert_eq!(
+                                block_number, report.block_number,
+                                "proving-client: the proved block is not consistent with the previous proving block",
+                            );
 
-                        // merge the proved result to the block report
-                        let start_time = start_timestamps.remove(&block_number).expect(
+                            // merge the proved result to the block report
+                            let start_time = start_timestamps.remove(&block_number).expect(
                             "proving-client: should have the proving block start time when proved",
                         );
-                        if proved_msg.success {
-                            let cycles = proved_msg.cycles;
-                            let proving_milliseconds = proved_msg.proving_milliseconds;
-                            let proof = Arc::new(proved_msg.proof.unwrap());
+                            if proved_msg.success {
+                                let cycles = proved_msg.cycles;
+                                let proving_milliseconds = proved_msg.proving_milliseconds;
+                                let proof = Arc::new(proved_msg.proof.unwrap());
+
+                                info!(
+                                    "proving-client: send the prove-end hook message of block {block_number}",
+                                );
+                                let msg = BlockMsg::Hook(HookMsg::ProveEnd {
+                                    block_number,
+                                    cycles,
+                                    proving_milliseconds,
+                                    proof: proof.clone(),
+                                });
+                                self.comm_endpoint.send(msg).expect(
+                                    "proving-client: failed to send prove-end hook message",
+                                );
+
+                                let end_time = SystemTime::now()
+                                    .duration_since(UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_millis()
+                                    as u64;
+                                report.on_proving_success(
+                                    cycles,
+                                    proving_milliseconds,
+                                    start_time,
+                                    end_time,
+                                    proof,
+                                );
+                            } else {
+                                report.on_proving_failure();
+                            }
 
                             info!(
-                                "proving-client: send the prove-end hook message of block {block_number}",
+                                "proving-client: send the report message of block {block_number}"
                             );
-                            let msg = BlockMsg::Hook(HookMsg::ProveEnd {
-                                block_number,
-                                cycles,
-                                proving_milliseconds,
-                                proof: proof.clone(),
-                            });
+                            let msg = BlockMsg::Report(report);
                             self.comm_endpoint
                                 .send(msg)
-                                .expect("proving-client: failed to send prove-end hook message");
-
-                            let end_time = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_millis() as u64;
-                            report.on_proving_success(
-                                cycles,
-                                proving_milliseconds,
-                                start_time,
-                                end_time,
-                                proof,
-                            );
+                                .expect("proving-client: failed to send report message");
                         } else {
-                            report.on_proving_failure();
+                            warn!(
+                                "proving-client: reset block {block_number} is returned as proved",
+                            );
                         }
-
-                        info!("proving-client: send the report message of block {block_number}");
-                        let msg = BlockMsg::Report(report);
-                        self.comm_endpoint
-                            .send(msg)
-                            .expect("proving-client: failed to send report message");
 
                         // process the next pending block
                         if let Some(proving_msg) = pending_msgs.pop_front() {
