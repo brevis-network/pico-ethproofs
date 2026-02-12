@@ -11,7 +11,7 @@ This document describes how to reproduce the results for proving of blocks on Se
 ## 1. Computing Infrastructure
 
 Two Compute Nodes, each with:
-- **CPU:** AMD EPYC 9575F Processor (240 vCPUs, 2 NUMA nodes)
+- **CPU:** AMD EPYC 9575F Processor (120 vCPUs per NUMA node, 2 NUMA nodes in total)
 - **GPU:** 8 × NVIDIA GeForce RTX 5090
 - **RAM:** 462 GB DDR5 Memory
 
@@ -19,7 +19,7 @@ Two Compute Nodes, each with:
 
 ### NUMA Pinning
 
-For best performance, Docker containers are pinned to a single NUMA node. By default, the Makefile binds to **NUMA node 1** (`CPUSET_CPUS=120-239`). Mismatched CPU/memory NUMA placement causes cross-node memory access with roughly 2× latency penalty, which can degrade end-to-end proving time by ~13%.
+For best performance, Docker containers are pinned to a **single** NUMA node. By default, the Makefile binds to **NUMA node 1** (`CPUSET_CPUS=120-239`). Mismatched CPU/memory NUMA placement causes cross-node memory access with roughly 2× latency penalty, which can degrade end-to-end proving time by ~13%.
 
 If your server has a different NUMA topology, determine the correct CPU range on **both** machines:
 
