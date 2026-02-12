@@ -63,10 +63,8 @@ up-secondary: ## Start secondary container (requires .env.secondary)
 # ============================================================================
 
 down: ## Stop and remove all containers
-	-$(DOCKER) stop pico-primary 2>/dev/null
-	-$(DOCKER) rm pico-primary 2>/dev/null
-	-$(DOCKER) stop pico-secondary 2>/dev/null
-	-$(DOCKER) rm pico-secondary 2>/dev/null
+	-$(DOCKER) rm -f pico-primary 2>/dev/null
+	-$(DOCKER) rm -f pico-secondary 2>/dev/null
 
 # ============================================================================
 # Image Management
