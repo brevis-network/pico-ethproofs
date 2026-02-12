@@ -174,7 +174,7 @@ make up-secondary \
 
 ---
 
-## 7. Verify Logs and Output
+## 7. Verify Logs and Collect Results
 
 Monitor the proving process:
 
@@ -191,7 +191,21 @@ make status DOCKER="sudo docker"
 
 - The primary node logs will show progress for each block being proved.
 - The secondary node logs will show tasks being pulled from the global scheduler and executed.
-- Wait until all 7,200 blocks are processed. Results are saved into `proving_report.csv` in the primary node's working directory.
+- Wait until all 7,200 blocks are processed.
+
+### Collect Results
+
+Once proving is complete, extract the primary container's logs and analyze them to produce a CSV report:
+
+```bash
+# 1. Save primary container logs to a timestamped file
+make save-logs DOCKER="sudo docker"
+
+# 2. Analyze the saved log file to produce a CSV
+make analyze LOG=logs/<file>.log
+```
+
+The `save-logs` target writes the log to `logs/pico-primary-<timestamp>.log`. The `analyze` target runs `scripts/analyze_log.py` on the specified log file and writes a CSV alongside it (e.g., `logs/pico-primary-<timestamp>.csv`) with columns: `tag, kind, block, idx, status, cycles, e2e_s, log_file`.
 
 ---
 

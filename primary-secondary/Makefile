@@ -1,5 +1,5 @@
 .PHONY: up-primary up-secondary down save-images load-images \
-        logs-primary logs-secondary status help
+        logs-primary logs-secondary status save-logs analyze help
 
 # ============================================================================
 # Configuration
@@ -97,6 +97,21 @@ status: ## Show container status
 	@echo "=== Images ==="
 	@$(DOCKER) images --filter "reference=$(IMAGE_NAME)" \
 		--format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
+
+# ============================================================================
+# Results
+# ============================================================================
+
+LOGS_DIR ?= ./logs
+
+save-logs: ## Save primary container logs to file
+	@mkdir -p $(LOGS_DIR)
+	$(DOCKER) logs pico-primary > "$(LOGS_DIR)/pico-primary-$$(date +%Y%m%d-%H%M%S).log" 2>&1
+	@ls -t $(LOGS_DIR)/pico-primary-*.log | head -1 | xargs -I{} echo "Logs saved to {}"
+
+analyze: ## Analyze a log file (usage: make analyze LOG=<path>)
+	@test -n "$(LOG)" || (echo "Error: specify LOG=<path>" && exit 1)
+	python3 scripts/analyze_log.py "$(LOG)" -o "$(LOG:.log=.csv)"
 
 # ============================================================================
 # Help
