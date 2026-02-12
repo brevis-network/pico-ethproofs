@@ -1,0 +1,10 @@
+# User-specific env files (generated from templates)
+.env.primary
+.env.secondary
+
+# Docker images
+*.tar
+*.tar.gz
+
+# Logs
+docker-logs/

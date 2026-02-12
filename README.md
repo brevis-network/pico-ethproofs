@@ -19,7 +19,18 @@ This repository provides an **all‑in‑one** system that fetches Ethereum bloc
 
 ---
 
-## Getting Started
+## Two Solutions
+
+This repository supports **two independent proving architectures**. Choose the one that fits your infrastructure:
+
+| | Solution A: Aggregator–Subblock | Solution B: Primary-Secondary                                                                    |
+|---|---|--------------------------------------------------------------------------------------------------|
+| **Machines** | 8 GPU machines | 2 GPU machines                                                                                   |
+| **Reproduction Guide** | [reproduce-01-sep-2025.md](./docs/reproduce-01-sep-2025.md) | [reproduce-01-sep-2025-two-machine.md](./primary-secondary/reproduce-01-sep-2025-two-machine.md) |
+
+---
+
+## Solution A: Aggregator–Subblock
 
 ### 0) Multi‑machine setup
 Follow [docs/multi-machine-setup.md](./docs/multi-machine-setup.md) to configure the hardware and software environment (e.g., Rust, NVIDIA drivers, CUDA, etc.) on all machines. This step ensures that Aggregator and Subblock worker machines are correctly provisioned and ready for proving tasks.
@@ -128,10 +139,18 @@ Client flags:
 - `--count <u64>=1`
 - `--report-path`, `--http-url`, `--ws-url` as above
 
-> **Reproduction**: With Mode C and [docs/reproduce-01-sep-2025.md](./docs/reproduce-01-sep-2025.md), you can reproduce Pico’s reported Real-Time-Proving results on blocks on **Sep. 01, 2025** from block inputs dumped on your side.
+> **Reproduction**: With Mode C and [docs/reproduce-01-sep-2025.md](./docs/reproduce-01-sep-2025.md), you can reproduce Pico's reported Real-Time-Proving results on blocks on **Sep. 01, 2025** from block inputs dumped on your side.
 
 **Result Output**  
 Proving results are saved to proving_report.csv.
+
+---
+
+## Solution B: Primary-Secondary
+
+This solution uses **2 GPU compute nodes** with pre-built Docker images for a simpler deployment. One node runs as the Primary (proving worker + global scheduler), the other as the Secondary (proving worker).
+
+Follow [primary-secondary/reproduce-01-sep-2025-two-machine.md](./primary-secondary/reproduce-01-sep-2025-two-machine.md) for the complete step-by-step guide to reproduce the Sep. 01, 2025 block proving results with this setup.
 
 
 ## Security
